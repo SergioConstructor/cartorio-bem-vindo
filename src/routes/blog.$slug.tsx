@@ -83,7 +83,7 @@ function PostPage() {
         <div className="ridge-divider my-10" />
 
         <div className="space-y-7 text-base leading-relaxed text-foreground/85">
-          {post.content.map((block, i) => (
+          {post.content.map((block: { heading?: string; body: string }, i: number) => (
             <div key={i}>
               {block.heading && (
                 <h2 className="mt-10 mb-3 font-display text-2xl">{block.heading}</h2>
