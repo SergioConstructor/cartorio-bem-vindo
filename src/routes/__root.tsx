@@ -100,7 +100,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           name: "Cartório de Notas — 2º Ofício de Itabaiana/SE",
           image: "/og-default.jpg",
           telephone: "+55-79-99976-0702",
-          email: "cesar.bravo@cn2oita.com.br",
+          email: "contato@cn2oita.com.br",
           address: {
             "@type": "PostalAddress",
             streetAddress: "Avenida Ivo de Carvalho, 441",
@@ -109,7 +109,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
             postalCode: "49500-064",
             addressCountry: "BR",
           },
-          openingHours: "Mo-Fr 08:00-17:00",
+          openingHours: "Mo-Fr 08:00-16:00",
         }),
       },
     ],

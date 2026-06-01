@@ -34,13 +34,13 @@ const infos = [
   {
     icon: Mail,
     title: "E-mail",
-    lines: ["cesar.bravo@cn2oita.com.br"],
-    href: "mailto:cesar.bravo@cn2oita.com.br",
+    lines: ["contato@cn2oita.com.br"],
+    href: "mailto:contato@cn2oita.com.br",
   },
   {
     icon: Clock,
     title: "Horário de atendimento",
-    lines: ["Segunda a sexta", "08h às 17h"],
+    lines: ["Segunda a sexta", "08h às 16h"],
   },
 ];
 
@@ -122,7 +122,7 @@ function ContatoPage() {
               Prefere escrever? Conte com a gente.
             </h2>
             <form
-              action="mailto:cesar.bravo@cn2oita.com.br"
+              action="mailto:contato@cn2oita.com.br"
               method="post"
               encType="text/plain"
               className="mt-10 grid gap-4"

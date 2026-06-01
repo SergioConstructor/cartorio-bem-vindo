@@ -203,7 +203,7 @@ function Home() {
               Tire suas dúvidas ou agende seu atendimento.
             </h2>
             <p className="mt-4 max-w-xl text-secondary-foreground/70">
-              Atendemos de segunda a sexta, das 08h às 17h, na Avenida Ivo de Carvalho, 441,
+              Atendemos de segunda a sexta, das 08h às 16h, na Avenida Ivo de Carvalho, 441,
               Centro de Itabaiana/SE. Você também pode falar conosco pelos canais abaixo.
             </p>
           </div>
