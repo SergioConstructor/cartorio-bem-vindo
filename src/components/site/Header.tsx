@@ -34,7 +34,7 @@ export function Header() {
             </Link>
           ))}
           <a
-            href="https://wa.me/5579999440969"
+            href="https://wa.me/557999760702"
             target="_blank"
             rel="noreferrer"
             className="rounded-sm bg-primary px-4 py-2 text-sm font-semibold uppercase tracking-wider text-primary-foreground transition-colors hover:bg-primary-soft"
@@ -68,7 +68,7 @@ export function Header() {
               </Link>
             ))}
             <a
-              href="https://wa.me/5579999440969"
+              href="https://wa.me/557999760702"
               target="_blank"
               rel="noreferrer"
               className="mt-4 rounded-sm bg-primary px-4 py-3 text-center text-sm font-semibold uppercase tracking-wider text-primary-foreground"

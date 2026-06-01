@@ -28,8 +28,8 @@ const infos = [
   {
     icon: Phone,
     title: "Telefone & WhatsApp",
-    lines: ["(79) 99944-0969"],
-    href: "tel:+5579999440969",
+    lines: ["(79) 99976-0702"],
+    href: "tel:+5579999760702",
   },
   {
     icon: Mail,
@@ -91,7 +91,7 @@ function ContatoPage() {
             ))}
 
             <a
-              href="https://wa.me/5579999440969"
+              href="https://wa.me/5579999760702"
               target="_blank"
               rel="noreferrer"
               className="inline-flex rounded-sm bg-primary px-6 py-3 text-sm font-semibold uppercase tracking-wider text-primary-foreground hover:bg-primary-soft"

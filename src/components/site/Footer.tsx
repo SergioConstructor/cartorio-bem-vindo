@@ -45,12 +45,12 @@ export function Footer() {
             <li className="flex gap-2">
               <Mail size={16} className="mt-0.5 shrink-0 text-primary-foreground/80" />
               <a href="mailto:cesar.bravo@cn2oita.com.br" className="hover:text-secondary-foreground">
-                cesar.bravo@cn2oita.com.br
+                contato@cn2oita.com.br
               </a>
             </li>
             <li className="flex gap-2">
               <Clock size={16} className="mt-0.5 shrink-0 text-primary-foreground/80" />
-              <span>Segunda a sexta · 08h às 17h</span>
+              <span>Segunda a sexta · 08h às 16h</span>
             </li>
           </ul>
         </div>

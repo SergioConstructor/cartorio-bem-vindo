@@ -81,7 +81,7 @@ function ServicosPage() {
             description="Nossa equipe ajuda você a identificar o ato adequado e prepara um checklist personalizado."
           />
           <a
-            href="https://wa.me/5579999440969"
+            href="https://wa.me/5579999760702"
             target="_blank"
             rel="noreferrer"
             className="mt-6 inline-flex rounded-sm bg-primary px-6 py-3 text-sm font-semibold uppercase tracking-wider text-primary-foreground hover:bg-primary-soft"

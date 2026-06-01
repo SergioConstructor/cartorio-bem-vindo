@@ -11,7 +11,7 @@ export function Logo({ variant = "default", className = "" }: Props) {
       <img
         src={logo}
         alt="CN2O — Cartório de Notas 2º Ofício de Itabaiana/SE"
-        className="h-12 w-12 rounded-sm object-cover"
+        className="h-12 w-12 rounded-full border-2 border-primary/20 object-cover shadow-sm transition-transform duration-300 hover:scale-105"
         loading="eager"
       />
       {variant === "default" && (

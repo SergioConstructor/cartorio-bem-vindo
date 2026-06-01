@@ -209,12 +209,12 @@ function Home() {
           </div>
           <div className="flex flex-col gap-3">
             <a
-              href="https://wa.me/5579999440969"
+              href="https://wa.me/5579999760702"
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center justify-center gap-2 rounded-sm bg-primary px-6 py-4 text-sm font-semibold uppercase tracking-wider text-primary-foreground hover:bg-primary-soft"
             >
-              <Phone size={16} /> WhatsApp (79) 99944-0969
+              <Phone size={16} /> WhatsApp (79) 99976-0702
             </a>
             <Link
               to="/contato"

@@ -100,7 +100,7 @@ function PostPage() {
             documentação necessária.
           </p>
           <a
-            href="https://wa.me/5579999440969"
+            href="https://wa.me/5579999760702"
             target="_blank"
             rel="noreferrer"
             className="mt-4 inline-flex rounded-sm bg-primary px-5 py-2.5 text-xs font-semibold uppercase tracking-wider text-primary-foreground hover:bg-primary-soft"

@@ -99,7 +99,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "@type": "LocalBusiness",
           name: "Cartório de Notas — 2º Ofício de Itabaiana/SE",
           image: "/og-default.jpg",
-          telephone: "+55-79-99944-0969",
+          telephone: "+55-79-99976-0702",
           email: "cesar.bravo@cn2oita.com.br",
           address: {
             "@type": "PostalAddress",
