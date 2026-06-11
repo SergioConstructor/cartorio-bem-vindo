@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, ShieldCheck, Clock, MapPin, Phone } from "lucide-react";
-import logo from "@/assets/cn2o-logo-vinho.jpg";
+import logo from "@/assets/cn2o-logo-white.png";
 import { SectionHeading } from "@/components/site/SectionHeading";
 import { services } from "@/content/services";
 import { posts } from "@/content/posts";
