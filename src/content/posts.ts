@@ -12,6 +12,134 @@ export type Post = {
 
 export const posts: Post[] = [
   {
+    slug: "ata-notarial-prova-com-fe-publica",
+    title: "Ata notarial: transforme fatos e provas digitais em prova com fé pública",
+    excerpt:
+      "Conversas de WhatsApp, publicações em redes sociais, páginas na internet e situações de fato podem ser preservadas como prova. Entenda como a ata notarial funciona e quando utilizá-la.",
+    date: "2026-07-01",
+    dateLabel: "1º de julho de 2026",
+    author: "César Bravo, Tabelião",
+    category: "Atos notariais",
+    readingTime: "5 min de leitura",
+    content: [
+      {
+        body: "A ata notarial é o instrumento pelo qual o tabelião atesta, com fé pública, a existência e o modo de existir de um fato. Em um mundo cada vez mais digital — em que conteúdos podem ser apagados ou editados a qualquer momento —, ela se tornou uma das ferramentas mais poderosas para preservar provas.",
+      },
+      {
+        heading: "Para que serve na prática",
+        body: "Os usos mais comuns incluem: registrar conversas de WhatsApp e e-mails, constatar publicações ofensivas em redes sociais, comprovar o conteúdo de páginas na internet, documentar o estado de um imóvel na entrega de chaves e atestar fatos ocorridos em reuniões e assembleias. A ata notarial também é requisito para o reconhecimento extrajudicial de usucapião.",
+      },
+      {
+        heading: "Qual o valor como prova?",
+        body: "O Código de Processo Civil reconhece expressamente a ata notarial como meio de prova. Por ser lavrada por um agente dotado de fé pública, ela goza de presunção de veracidade: o que o tabelião narra ter visto ou constatado dificilmente será desconstituído — o que dá enorme força ao documento em processos judiciais e negociações.",
+      },
+      {
+        heading: "Como é feita",
+        body: "O interessado indica o fato a ser constatado e o tabelião o verifica pessoalmente: acessa o site, lê a conversa no aparelho apresentado, comparece ao local. Em seguida, descreve fielmente o que constatou, sem emitir juízo de valor — a ata narra fatos, não opiniões. Capturas de tela e fotografias podem integrar o documento.",
+      },
+      {
+        heading: "O que levar ao cartório",
+        body: "Documento de identidade com foto, a indicação clara do fato a ser constatado e o material de apoio necessário — aparelho celular com a conversa, links das páginas, endereço do local. Em caso de dúvida, fale conosco antes: orientamos sobre a viabilidade e o melhor formato para o seu caso.",
+      },
+    ],
+  },
+  {
+    slug: "autenticacao-de-copias-quando-e-necessaria",
+    title: "Autenticação de cópias: quando é necessária e como funciona",
+    excerpt:
+      "A cópia autenticada tem a mesma validade legal do documento original. Saiba quando ela é exigida, como o processo funciona no cartório e o que fazer com documentos digitais.",
+    date: "2026-06-18",
+    dateLabel: "18 de junho de 2026",
+    author: "Equipe CN2O",
+    category: "Guias práticos",
+    readingTime: "4 min de leitura",
+    content: [
+      {
+        body: "Autenticar uma cópia é conferir a ela a mesma validade legal do documento original. O tabelião — ou escrevente autorizado — compara a cópia com o original apresentado e, estando idênticos, apõe o selo de autenticação. A partir daí, a cópia pode substituir o original perante órgãos públicos e instituições privadas.",
+      },
+      {
+        heading: "Quando a cópia autenticada é exigida",
+        body: "Matrículas escolares e universitárias, posse em concursos públicos, processos administrativos, habilitação de casamento, contratos e financiamentos são exemplos frequentes. Embora a legislação venha simplificando exigências, muitos órgãos e empresas continuam solicitando cópias autenticadas por segurança.",
+      },
+      {
+        heading: "Como funciona no cartório",
+        body: "Basta apresentar o documento original e as cópias desejadas — ou apenas o original, e o próprio cartório providencia a reprodução. A conferência é feita página a página e cada folha autenticada recebe selo e carimbo próprios. O procedimento é rápido e feito na hora.",
+      },
+      {
+        heading: "E os documentos digitais?",
+        body: "Também é possível trabalhar com documentos eletrônicos: a materialização transforma um documento digital assinado eletronicamente em papel com fé pública, e a digitalização autenticada faz o caminho inverso. Consulte o cartório sobre o formato do seu documento antes de comparecer.",
+      },
+      {
+        heading: "Dica prática",
+        body: "Traga sempre o documento original em bom estado de conservação. Documentos rasurados, plastificados com danos ou ilegíveis podem inviabilizar a autenticação — nesses casos, oriente-se conosco sobre a melhor alternativa, como a segunda via do original.",
+      },
+    ],
+  },
+  {
+    slug: "divorcio-e-inventario-em-cartorio",
+    title: "Divórcio e inventário em cartório: resolva sem processo judicial",
+    excerpt:
+      "Quando há consenso, o divórcio e o inventário podem ser feitos por escritura pública — em dias, e não em anos. Veja os requisitos, as vantagens e os documentos necessários.",
+    date: "2026-06-05",
+    dateLabel: "5 de junho de 2026",
+    author: "César Bravo, Tabelião",
+    category: "Planejamento",
+    readingTime: "6 min de leitura",
+    content: [
+      {
+        body: "Desde a Lei nº 11.441/2007, o divórcio e o inventário consensuais podem ser realizados diretamente no cartório de notas, por escritura pública, sem necessidade de processo judicial. É a chamada via extrajudicial: mais rápida, menos custosa e muito menos desgastante para as famílias.",
+      },
+      {
+        heading: "Divórcio em cartório: requisitos",
+        body: "O requisito central é o consenso: o casal deve estar de acordo quanto ao fim do casamento, à partilha dos bens e, se for o caso, à pensão entre os cônjuges. É indispensável a assistência de advogado, que pode ser comum às duas partes. Quando há filhos menores ou incapazes, as questões de guarda, convivência e alimentos precisam estar previamente definidas — consulte o cartório sobre os requisitos aplicáveis ao seu caso.",
+      },
+      {
+        heading: "Inventário extrajudicial",
+        body: "A partilha dos bens de uma pessoa falecida também pode ser feita por escritura quando os herdeiros são maiores, capazes e estão de acordo com a divisão. Assim como no divórcio, a participação de advogado é obrigatória. A existência de testamento exige análise específica — em determinadas hipóteses, a via extrajudicial permanece possível.",
+      },
+      {
+        heading: "Por que escolher a via extrajudicial",
+        body: "O contraste é expressivo: enquanto um processo judicial pode levar anos, a escritura de divórcio ou inventário costuma ser lavrada em dias, assim que a documentação está completa. Os custos são previsíveis (emolumentos tabelados e tributos), e a escritura tem eficácia imediata, servindo para averbações e transferências de bens.",
+      },
+      {
+        heading: "Documentos básicos",
+        body: "Documentos pessoais das partes, certidão de casamento atualizada, certidões dos bens (matrículas de imóveis, documentos de veículos), comprovantes de recolhimento dos tributos devidos e, no inventário, certidão de óbito e certidão de inexistência de testamento. Nossa equipe prepara um checklist personalizado para cada caso.",
+      },
+    ],
+  },
+  {
+    slug: "uniao-estavel-por-que-formalizar-em-cartorio",
+    title: "União estável: por que e como formalizar no cartório",
+    excerpt:
+      "A escritura declaratória de união estável protege o casal no presente e no futuro — do plano de saúde à herança. Entenda os efeitos, o regime de bens e o passo a passo.",
+    date: "2026-05-26",
+    dateLabel: "26 de maio de 2026",
+    author: "Equipe CN2O",
+    category: "Atos notariais",
+    readingTime: "5 min de leitura",
+    content: [
+      {
+        body: "Muitos casais vivem em união estável sem qualquer documento que a comprove. A escritura pública declaratória de união estável resolve essa fragilidade: formaliza a relação com fé pública, define regras patrimoniais claras e evita disputas dolorosas no futuro.",
+      },
+      {
+        heading: "Por que formalizar",
+        body: "Com a escritura, o casal comprova a união perante planos de saúde, INSS, bancos e órgãos públicos — para inclusão de dependentes, pensões e benefícios. Ela também resguarda direitos sucessórios e facilita enormemente a comprovação da relação em momentos delicados, como o falecimento de um dos companheiros.",
+      },
+      {
+        heading: "Regime de bens: vocês escolhem",
+        body: "Na ausência de estipulação, aplica-se à união estável o regime da comunhão parcial de bens. Na escritura, porém, o casal pode escolher livremente outro regime — separação total, comunhão universal ou participação final nos aquestos — adequando as regras patrimoniais à realidade da relação.",
+      },
+      {
+        heading: "Como é feito",
+        body: "Os companheiros comparecem ao cartório com documentos de identidade, CPF e certidões de estado civil, e declaram a convivência pública, contínua e duradoura, com o objetivo de constituir família. Se desejarem, indicam a data de início da união — informação relevante para efeitos patrimoniais e previdenciários.",
+      },
+      {
+        heading: "E se a união terminar?",
+        body: "A dissolução consensual da união estável também pode ser feita por escritura pública, com a partilha dos bens adquiridos. O procedimento segue lógica semelhante à do divórcio extrajudicial, inclusive quanto à assistência obrigatória de advogado.",
+      },
+    ],
+  },
+  {
     slug: "quando-preciso-reconhecer-firma",
     title: "Quando preciso reconhecer firma em um documento?",
     excerpt:

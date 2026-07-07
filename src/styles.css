@@ -2,7 +2,7 @@
 @source "../src";
 @import "tw-animate-css";
 
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&family=Lato:wght@300;400;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,500;1,600&family=Lato:wght@300;400;700;900&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 
@@ -20,6 +20,7 @@
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary-soft: var(--primary-soft);
+  --color-primary-deep: var(--primary-deep);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
@@ -32,6 +33,7 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
   --font-display: var(--font-display);
   --font-sans: var(--font-sans);
 }
@@ -39,7 +41,7 @@
 :root {
   --radius: 0.375rem;
 
-  /* Brand: vinho #631325, navy #202a3a, branco */
+  /* Brand: vinho #631325, navy #202a3a, branco, dourado */
   --background: oklch(0.985 0.004 80);          /* off-white quente */
   --foreground: oklch(0.24 0.03 260);           /* navy #202a3a */
 
@@ -52,6 +54,7 @@
   --primary: oklch(0.34 0.115 16);              /* vinho #631325 */
   --primary-foreground: oklch(0.985 0.004 80);
   --primary-soft: oklch(0.42 0.13 18);          /* vinho mais claro hover */
+  --primary-deep: oklch(0.26 0.09 14);          /* vinho profundo para gradientes */
 
   --secondary: oklch(0.24 0.03 260);            /* navy */
   --secondary-foreground: oklch(0.985 0.004 80);
@@ -69,7 +72,8 @@
   --input: oklch(0.9 0.01 60);
   --ring: oklch(0.34 0.115 16);
 
-  --gold: oklch(0.75 0.11 80);
+  --gold: oklch(0.75 0.11 80);                  /* dourado do selo */
+  --gold-soft: oklch(0.94 0.035 85);            /* dourado muito claro (chips) */
 
   --font-display: 'Cormorant Garamond', Georgia, serif;
   --font-sans: 'Lato', system-ui, sans-serif;
@@ -98,6 +102,24 @@
     letter-spacing: -0.01em;
     color: var(--color-secondary);
   }
+
+  ::selection {
+    background-color: var(--primary);
+    color: var(--primary-foreground);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* Sobre fundos vinho/navy o anel vinho some — usa dourado (contraste > 5:1) */
+  .hero-gradient :focus-visible,
+  .hero-gradient:focus-visible,
+  .navy-gradient :focus-visible,
+  .navy-gradient:focus-visible {
+    outline-color: var(--gold);
+  }
 }
 
 @layer utilities {
@@ -107,22 +129,41 @@
     padding-inline: 1.25rem;
   }
 
+  /* Gradiente institucional vinho — heros e faixas de destaque */
+  .hero-gradient {
+    background-color: var(--primary);
+    background-image:
+      radial-gradient(56rem 28rem at 88% -12%, oklch(0.44 0.135 18 / 0.5), transparent 62%),
+      radial-gradient(40rem 22rem at -10% 110%, oklch(0.2 0.07 14 / 0.6), transparent 55%),
+      linear-gradient(150deg, var(--primary-deep) 0%, var(--primary) 58%, oklch(0.31 0.105 15) 100%);
+  }
+
+  /* Gradiente navy — faixas de contato/rodapé */
+  .navy-gradient {
+    background-color: var(--secondary);
+    background-image:
+      radial-gradient(48rem 26rem at 90% -20%, oklch(0.32 0.045 260 / 0.7), transparent 60%),
+      linear-gradient(150deg, oklch(0.2 0.028 262) 0%, var(--secondary) 60%);
+  }
+
   .ridge-divider {
-    height: 1px;
+    height: 2px;
     background-image: linear-gradient(
       90deg,
-      transparent 0,
-      transparent 10%,
-      var(--primary) 10%,
-      var(--primary) 11%,
-      transparent 11%,
+      var(--primary) 0,
+      var(--primary) 18%,
+      transparent 18%,
       transparent 22%,
-      var(--secondary) 22%,
-      var(--secondary) 24%,
-      transparent 24%,
+      var(--gold) 22%,
+      var(--gold) 34%,
+      transparent 34%,
+      transparent 38%,
+      var(--secondary) 38%,
+      var(--secondary) 44%,
+      transparent 44%,
       transparent 100%
     );
-    opacity: 0.4;
+    opacity: 0.75;
   }
 
   .topo-lines {
@@ -131,5 +172,14 @@
       linear-gradient(115deg, transparent 0, transparent 49.5%, currentColor 49.5%, currentColor 50.5%, transparent 50.5%);
     background-size: 18px 18px, 36px 36px;
     background-position: 0 0, 9px 9px;
+  }
+
+  /* Elevação sutil em cards clicáveis */
+  .card-lift {
+    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  }
+  .card-lift:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 18px 40px -24px rgba(99, 19, 37, 0.45);
   }
 }
