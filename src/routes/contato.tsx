@@ -1,5 +1,8 @@
+import type { FormEvent, MouseEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { MapPin, Phone, Mail, Clock } from "lucide-react";
+import { Clock, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
+import { PageHero } from "@/components/site/PageHero";
+import { SectionHeading } from "@/components/site/SectionHeading";
 
 export const Route = createFileRoute("/contato")({
   head: () => ({
@@ -44,63 +47,86 @@ const infos = [
   },
 ];
 
+const inputClass =
+  "w-full rounded-sm border border-input bg-card px-4 py-3 text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15";
+
+// Sem backend: o envio monta a mensagem e abre o e-mail ou o WhatsApp do visitante
+function composeMessage(form: HTMLFormElement) {
+  const data = new FormData(form);
+  return {
+    subject: String(data.get("assunto") || "Contato pelo site"),
+    body: `Nome: ${data.get("nome")}\nE-mail: ${data.get("email")}\n\n${data.get("mensagem")}`,
+  };
+}
+
+function handleEmailSubmit(e: FormEvent<HTMLFormElement>) {
+  e.preventDefault();
+  const { subject, body } = composeMessage(e.currentTarget);
+  window.location.href = `mailto:contato@cn2oita.com.br?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+function handleWhatsAppSubmit(e: MouseEvent<HTMLButtonElement>) {
+  const form = e.currentTarget.form;
+  if (!form || !form.reportValidity()) return;
+  const { subject, body } = composeMessage(form);
+  window.open(
+    `https://wa.me/5579999760702?text=${encodeURIComponent(`${subject}\n\n${body}`)}`,
+    "_blank",
+    "noreferrer",
+  );
+}
+
 function ContatoPage() {
   return (
     <>
-      <section className="bg-primary text-primary-foreground">
-        <div className="container-tight py-20">
-          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-primary-foreground/70">
-            Contato
-          </div>
-          <h1 className="mt-4 font-display text-4xl text-primary-foreground md:text-5xl">
-            Estamos prontos para atender você.
-          </h1>
-          <p className="mt-4 max-w-2xl text-primary-foreground/80">
-            Visite-nos no Centro de Itabaiana, ligue, mande um WhatsApp ou nos envie um
-            e-mail. Responderemos o mais breve possível.
-          </p>
-        </div>
-      </section>
+      <PageHero
+        eyebrow="Contato"
+        title="Estamos prontos para atender você."
+        description="Visite-nos no Centro de Itabaiana, ligue, mande um WhatsApp ou nos envie um e-mail. Responderemos o mais breve possível."
+      />
 
       <section className="container-tight py-20">
-        <div className="grid gap-12 md:grid-cols-[1fr_1.2fr]">
-          <div className="space-y-8">
-            {infos.map(({ icon: Icon, title, lines, href }) => (
-              <div key={title} className="flex gap-4 border-b border-border pb-6">
-                <Icon size={22} className="mt-1 shrink-0 text-primary" />
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-secondary/70">
+        <div className="grid gap-12 md:grid-cols-[1fr_1.1fr]">
+          <div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {infos.map(({ icon: Icon, title, lines, href }) => (
+                <div key={title} className="card-lift border border-border bg-card p-6">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-sm bg-gold-soft text-primary">
+                    <Icon size={20} aria-hidden />
+                  </div>
+                  <div className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-secondary/70">
                     {title}
                   </div>
                   {href ? (
                     <a
                       href={href}
-                      className="mt-1 block font-display text-lg text-secondary hover:text-primary"
+                      className="mt-2 block font-display text-lg text-secondary transition-colors hover:text-primary"
                     >
                       {lines[0]}
                     </a>
                   ) : (
-                    <div className="mt-1 text-foreground/80">
+                    <div className="mt-2 text-sm leading-relaxed text-foreground/80">
                       {lines.map((l) => (
                         <div key={l}>{l}</div>
                       ))}
                     </div>
                   )}
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
 
             <a
               href="https://wa.me/5579999760702"
               target="_blank"
               rel="noreferrer"
-              className="inline-flex rounded-sm bg-primary px-6 py-3 text-sm font-semibold uppercase tracking-wider text-primary-foreground hover:bg-primary-soft"
+              className="mt-6 inline-flex items-center gap-2 rounded-sm bg-primary px-6 py-3 text-sm font-semibold uppercase tracking-wider text-primary-foreground shadow-sm transition-colors hover:bg-primary-soft"
             >
+              <MessageCircle size={15} aria-hidden />
               Falar pelo WhatsApp
             </a>
           </div>
 
-          <div className="overflow-hidden border border-border">
+          <div className="overflow-hidden border border-border shadow-sm">
             <iframe
               title="Localização do CN2O — 2º Ofício de Itabaiana"
               src="https://www.google.com/maps?q=Avenida+Ivo+de+Carvalho+441+Itabaiana+Sergipe&output=embed"
@@ -115,51 +141,62 @@ function ContatoPage() {
       <section className="bg-accent/30">
         <div className="container-tight py-20">
           <div className="mx-auto max-w-2xl">
-            <div className="text-center text-xs font-semibold uppercase tracking-[0.22em] text-primary">
-              Envie uma mensagem
-            </div>
-            <h2 className="mt-3 text-center font-display text-3xl">
-              Prefere escrever? Conte com a gente.
-            </h2>
-            <form
-              action="mailto:contato@cn2oita.com.br"
-              method="post"
-              encType="text/plain"
-              className="mt-10 grid gap-4"
-            >
-              <div className="grid gap-4 md:grid-cols-2">
-                <input
-                  required
-                  name="nome"
-                  placeholder="Seu nome"
-                  className="border border-input bg-background px-4 py-3 text-sm outline-none focus:border-primary"
-                />
-                <input
-                  required
-                  type="email"
-                  name="email"
-                  placeholder="Seu e-mail"
-                  className="border border-input bg-background px-4 py-3 text-sm outline-none focus:border-primary"
-                />
+            <SectionHeading
+              align="center"
+              eyebrow="Envie uma mensagem"
+              title="Prefere escrever? Conte com a gente."
+              description="Preencha os campos e escolha como enviar: abrimos seu aplicativo de e-mail ou o WhatsApp com a mensagem já pronta."
+            />
+            <form onSubmit={handleEmailSubmit} className="mt-10 grid gap-5">
+              <div className="grid gap-5 md:grid-cols-2">
+                <label className="grid gap-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-secondary/70">
+                    Seu nome
+                  </span>
+                  <input required name="nome" autoComplete="name" className={inputClass} />
+                </label>
+                <label className="grid gap-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-secondary/70">
+                    Seu e-mail
+                  </span>
+                  <input
+                    required
+                    type="email"
+                    name="email"
+                    autoComplete="email"
+                    className={inputClass}
+                  />
+                </label>
               </div>
-              <input
-                name="assunto"
-                placeholder="Assunto"
-                className="border border-input bg-background px-4 py-3 text-sm outline-none focus:border-primary"
-              />
-              <textarea
-                required
-                name="mensagem"
-                rows={6}
-                placeholder="Sua mensagem"
-                className="border border-input bg-background px-4 py-3 text-sm outline-none focus:border-primary"
-              />
-              <button
-                type="submit"
-                className="justify-self-start rounded-sm bg-primary px-6 py-3 text-sm font-semibold uppercase tracking-wider text-primary-foreground hover:bg-primary-soft"
-              >
-                Enviar mensagem
-              </button>
+              <label className="grid gap-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wider text-secondary/70">
+                  Assunto
+                </span>
+                <input name="assunto" className={inputClass} />
+              </label>
+              <label className="grid gap-1.5">
+                <span className="text-xs font-semibold uppercase tracking-wider text-secondary/70">
+                  Sua mensagem
+                </span>
+                <textarea required name="mensagem" rows={6} className={inputClass} />
+              </label>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="submit"
+                  className="inline-flex items-center gap-2 rounded-sm bg-primary px-6 py-3 text-sm font-semibold uppercase tracking-wider text-primary-foreground shadow-sm transition-colors hover:bg-primary-soft"
+                >
+                  <Mail size={15} aria-hidden />
+                  Enviar por e-mail
+                </button>
+                <button
+                  type="button"
+                  onClick={handleWhatsAppSubmit}
+                  className="inline-flex items-center gap-2 rounded-sm border border-primary/40 px-6 py-3 text-sm font-semibold uppercase tracking-wider text-primary transition-colors hover:bg-accent"
+                >
+                  <MessageCircle size={15} aria-hidden />
+                  Enviar pelo WhatsApp
+                </button>
+              </div>
             </form>
           </div>
         </div>

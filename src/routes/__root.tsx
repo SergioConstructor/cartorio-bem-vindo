@@ -42,9 +42,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     <div className="flex min-h-[60vh] items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="font-display text-2xl">Algo deu errado ao carregar esta página</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Tente novamente ou volte ao início.
-        </p>
+        <p className="mt-2 text-sm text-muted-foreground">Tente novamente ou volte ao início.</p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
             onClick={() => {
@@ -84,8 +82,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:title", content: "Cartório de Notas — 2º Ofício de Itabaiana/SE" },
       {
         property: "og:description",
-        content:
-          "Tradição e modernidade a serviço dos cidadãos de Itabaiana e região.",
+        content: "Tradição e modernidade a serviço dos cidadãos de Itabaiana e região.",
       },
       { name: "twitter:card", content: "summary" },
       { name: "theme-color", content: "#631325" },

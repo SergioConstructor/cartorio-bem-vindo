@@ -1,55 +1,91 @@
 import { Link } from "@tanstack/react-router";
-import { MapPin, Phone, Mail, Clock } from "lucide-react";
+import { Clock, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import { Logo } from "./Logo";
 
 export function Footer() {
   return (
-    <footer className="mt-24 bg-secondary text-secondary-foreground">
+    <footer className="navy-gradient mt-24 text-secondary-foreground">
+      <div className="h-1 bg-gradient-to-r from-primary via-gold to-primary-deep" aria-hidden />
       <div className="container-tight grid gap-12 py-16 md:grid-cols-4">
         <div className="md:col-span-2">
-          <div className="[&_*]:!text-secondary-foreground">
-            <Logo />
-          </div>
+          <Logo tone="light" />
           <p className="mt-5 max-w-md text-sm leading-relaxed text-secondary-foreground/70">
-            Tradição e modernidade a serviço dos cidadãos de Itabaiana e região.
-            Atos notariais com fé pública, agilidade e atendimento humano.
+            Tradição e modernidade a serviço dos cidadãos de Itabaiana e região. Atos notariais com
+            fé pública, agilidade e atendimento humano.
           </p>
+          <a
+            href="https://wa.me/5579999760702"
+            target="_blank"
+            rel="noreferrer"
+            className="mt-6 inline-flex items-center gap-2 rounded-sm border border-gold/40 px-4 py-2.5 text-xs font-semibold uppercase tracking-wider text-gold transition-colors hover:bg-gold hover:text-secondary"
+          >
+            <MessageCircle size={14} aria-hidden />
+            Falar pelo WhatsApp
+          </a>
         </div>
 
         <div>
-          <h4 className="!text-secondary-foreground text-sm font-semibold uppercase tracking-[0.18em]">
-            Navegação
-          </h4>
+          <h4 className="text-xs font-semibold uppercase tracking-[0.2em] !text-gold">Navegação</h4>
           <ul className="mt-4 space-y-2 text-sm text-secondary-foreground/70">
-            <li><Link to="/" className="hover:text-secondary-foreground">Início</Link></li>
-            <li><Link to="/servicos" className="hover:text-secondary-foreground">Serviços</Link></li>
-            <li><Link to="/sobre" className="hover:text-secondary-foreground">Sobre</Link></li>
-            <li><Link to="/blog" className="hover:text-secondary-foreground">Blog</Link></li>
-            <li><Link to="/contato" className="hover:text-secondary-foreground">Contato</Link></li>
+            <li>
+              <Link to="/" className="transition-colors hover:text-secondary-foreground">
+                Início
+              </Link>
+            </li>
+            <li>
+              <Link to="/servicos" className="transition-colors hover:text-secondary-foreground">
+                Serviços
+              </Link>
+            </li>
+            <li>
+              <Link to="/sobre" className="transition-colors hover:text-secondary-foreground">
+                Sobre
+              </Link>
+            </li>
+            <li>
+              <Link to="/blog" className="transition-colors hover:text-secondary-foreground">
+                Blog
+              </Link>
+            </li>
+            <li>
+              <Link to="/contato" className="transition-colors hover:text-secondary-foreground">
+                Contato
+              </Link>
+            </li>
           </ul>
         </div>
 
         <div>
-          <h4 className="!text-secondary-foreground text-sm font-semibold uppercase tracking-[0.18em]">
-            Contato
-          </h4>
+          <h4 className="text-xs font-semibold uppercase tracking-[0.2em] !text-gold">Contato</h4>
           <ul className="mt-4 space-y-3 text-sm text-secondary-foreground/70">
             <li className="flex gap-2">
-              <MapPin size={16} className="mt-0.5 shrink-0 text-primary-foreground/80" />
-              <span>Av. Ivo de Carvalho, 441 — Centro<br />Itabaiana/SE · CEP 49.500-064</span>
+              <MapPin size={16} className="mt-0.5 shrink-0 text-gold/80" aria-hidden />
+              <span>
+                Av. Ivo de Carvalho, 441 — Centro
+                <br />
+                Itabaiana/SE · CEP 49.500-064
+              </span>
             </li>
             <li className="flex gap-2">
-              <Phone size={16} className="mt-0.5 shrink-0 text-primary-foreground/80" />
-              <a href="tel:+5579999760702" className="hover:text-secondary-foreground">(79) 99976-0702</a>
+              <Phone size={16} className="mt-0.5 shrink-0 text-gold/80" aria-hidden />
+              <a
+                href="tel:+5579999760702"
+                className="transition-colors hover:text-secondary-foreground"
+              >
+                (79) 99976-0702
+              </a>
             </li>
             <li className="flex gap-2">
-              <Mail size={16} className="mt-0.5 shrink-0 text-primary-foreground/80" />
-              <a href="mailto:contato@cn2oita.com.br" className="hover:text-secondary-foreground">
+              <Mail size={16} className="mt-0.5 shrink-0 text-gold/80" aria-hidden />
+              <a
+                href="mailto:contato@cn2oita.com.br"
+                className="transition-colors hover:text-secondary-foreground"
+              >
                 contato@cn2oita.com.br
               </a>
             </li>
             <li className="flex gap-2">
-              <Clock size={16} className="mt-0.5 shrink-0 text-primary-foreground/80" />
+              <Clock size={16} className="mt-0.5 shrink-0 text-gold/80" aria-hidden />
               <span>Segunda a sexta · 08h às 16h</span>
             </li>
           </ul>

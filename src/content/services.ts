@@ -52,10 +52,7 @@ export const services: Service[] = [
     short: "Cópias com fé pública.",
     description:
       "Conferência e autenticação de cópias reprográficas a partir do documento original, conferindo-lhes a mesma validade legal do original perante repartições e órgãos.",
-    documents: [
-      "Documento original",
-      "Cópias a serem autenticadas",
-    ],
+    documents: ["Documento original", "Cópias a serem autenticadas"],
   },
   {
     slug: "testamentos",
