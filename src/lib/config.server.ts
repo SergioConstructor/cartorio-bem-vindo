@@ -19,8 +19,14 @@ import process from "node:process";
 export function getServerConfig() {
   return {
     nodeEnv: process.env.NODE_ENV,
-    // Add server-only values here, e.g.:
-    //   databaseUrl: process.env.DATABASE_URL,
-    //   stripeSecretKey: process.env.STRIPE_SECRET_KEY,
+    // Credenciais do Trello para a página /acompanhar. São SEGREDOS: nunca use
+    // o prefixo VITE_ (isso as enviaria ao navegador). Configure na Vercel em
+    // Environment Variables e num .env local para desenvolvimento.
+    trelloApiKey: process.env.TRELLO_API_KEY,
+    trelloApiToken: process.env.TRELLO_API_TOKEN,
+    // Opcional: id do workspace do Trello. Se definido, o site só considera os
+    // quadros desse espaço ao descobrir as etapas (evita pegar quadros de
+    // outros assuntos da conta).
+    trelloOrganizationId: process.env.TRELLO_ORGANIZATION_ID,
   };
 }
