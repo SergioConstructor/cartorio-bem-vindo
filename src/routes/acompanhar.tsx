@@ -9,7 +9,7 @@ import { PageHero } from "@/components/site/PageHero";
 import { SectionHeading } from "@/components/site/SectionHeading";
 import { Progress } from "@/components/ui/progress";
 import { getEscrituraStatus, type TrackingResult } from "@/lib/api/tracking.functions";
-import { demoStageIndex, demoStages, type Stage } from "@/content/tracking";
+import { defaultStages, demoStageIndex } from "@/content/tracking";
 
 export const Route = createFileRoute("/acompanhar")({
   head: () => ({
@@ -38,9 +38,7 @@ const formSchema = z.object({
   protocolo: z
     .string()
     .trim()
-    .min(3, "Informe um número de protocolo válido.")
-    .max(40, "Protocolo muito longo.")
-    .regex(/^[\p{L}\p{N}\-/.]+$/u, "O protocolo contém caracteres inválidos."),
+    .regex(/^\d{1,10}$/u, "Informe apenas os números do protocolo."),
 });
 type FormValues = z.infer<typeof formSchema>;
 
@@ -94,7 +92,7 @@ function AcompanharPage() {
                   {...register("protocolo")}
                   placeholder="Ex.: 0988"
                   autoComplete="off"
-                  inputMode="text"
+                  inputMode="numeric"
                   className={inputClass}
                   aria-invalid={errors.protocolo ? "true" : "false"}
                 />
@@ -150,7 +148,7 @@ function ResultView({ result, protocolo }: { result: TrackingResult; protocolo: 
     case "config_pendente":
       return (
         <Timeline
-          stages={demoStages}
+          stages={defaultStages}
           currentStageIndex={demoStageIndex}
           updatedAt={null}
           protocolo={protocolo}
@@ -184,7 +182,7 @@ function Timeline({
   protocolo,
   demo = false,
 }: {
-  stages: Stage[];
+  stages: { label: string }[];
   currentStageIndex: number;
   updatedAt: string | null;
   protocolo: string;

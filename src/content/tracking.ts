@@ -1,53 +1,60 @@
-// Acompanhamento da escritura ("andamento") — convenção dos quadros do Trello.
+// Acompanhamento da escritura — mapeamento do fluxo real do cartório no Trello.
 //
-// As etapas NÃO ficam no código: o site descobre os quadros-etapa ao vivo no
-// Trello. Basta o cartório nomear cada quadro com um número na frente, na
-// ordem do fluxo:
+// O andamento acontece pelas LISTAS (colunas) em que o cartão está:
+//   - Quadro "00. Protocolo/Cadastro": Triagem → Protocolo/Entrada →
+//     Em Digitalização → Cadastro Extradigital → Em Conferência
+//   - Quadros "02. ESCREVENTE …" (um por escrevente, todos com as mesmas
+//     colunas): A Fazer (Minuta) → Conferência de Minuta → Ajuste/Retorno →
+//     Agendar Assinatura → Aguardando Assinatura → Finalizado
 //
-//   01 · Protocolo recebido
-//   02 · Análise de documentos
-//   03 · Tributos e certidões
-//   ...
+// Colunas de mesmo nome em quadros diferentes contam como a MESMA etapa, então
+// não importa qual escrevente está com o processo. Cada etapa abaixo tem um
+// rótulo amigável (mostrado ao cliente) e os nomes das listas do Trello que
+// correspondem a ela (a comparação ignora acentos, maiúsculas e pontuação).
 //
-// O número define a ORDEM e o texto vira o RÓTULO exibido ao cliente.
-// Separadores aceitos: · . - – — : )  (ex.: "01 - Análise", "2) Minuta").
-// Quadros sem número na frente são ignorados pelo acompanhamento.
-//
-// Cada escritura é um cartão com o número de protocolo no nome
-// (ex.: "2025-00123 — Compra e venda"); mover o cartão entre quadros já
-// atualiza o andamento no site. Nada disso exige mexer no código.
+// Para mudar o fluxo sem mexer no código, defina TRELLO_STAGE_LISTS na Vercel:
+//   etapas separadas por vírgula; dentro de cada etapa, nomes alternativos
+//   separados por "|" — o primeiro é o rótulo exibido. Ex.:
+//   TRELLO_STAGE_LISTS=Triagem, Elaboração da minuta | A Fazer (Minuta), Finalizado
 
 export type Stage = {
-  /** rótulo exibido na linha do tempo (vem do nome do quadro) */
+  /** rótulo exibido na linha do tempo */
   label: string;
+  /** nomes das listas do Trello que correspondem a esta etapa */
+  lists: string[];
 };
 
-export type OrderedBoard = {
-  boardId: string;
-  order: number;
-  label: string;
-};
-
-const STAGE_NAME_RE = /^\s*(\d+)\s*[·.\-–—:)]\s*(.+?)\s*$/u;
-
-/** "01 · Protocolo recebido" → { order: 1, label: "Protocolo recebido" }; null se não seguir a convenção. */
-export function parseStageBoardName(name: string): { order: number; label: string } | null {
-  const match = STAGE_NAME_RE.exec(name);
-  if (!match) return null;
-  return { order: Number(match[1]), label: match[2] };
-}
-
-// Etapas de DEMONSTRAÇÃO: usadas apenas enquanto o Trello não está configurado
-// (sem credenciais ou sem quadros seguindo a convenção), para pré-visualizar a
-// página. Em produção os rótulos reais vêm dos nomes dos quadros.
-export const demoStages: Stage[] = [
-  { label: "Protocolo recebido" },
-  { label: "Análise de documentos" },
-  { label: "Tributos e certidões (ITBI)" },
-  { label: "Minuta em elaboração" },
-  { label: "Aguardando assinaturas" },
-  { label: "Escritura lavrada" },
-  { label: "Concluída — pronta para retirada" },
+export const defaultStages: Stage[] = [
+  { label: "Triagem", lists: ["Triagem"] },
+  { label: "Protocolo/Entrada", lists: ["Protocolo/Entrada"] },
+  { label: "Digitalização", lists: ["Em Digitalização"] },
+  { label: "Cadastro extradigital", lists: ["Cadastro Extradigital"] },
+  { label: "Conferência do cadastro", lists: ["Em Conferência"] },
+  { label: "Elaboração da minuta", lists: ["A Fazer (Minuta)", "Pendências"] },
+  { label: "Conferência da minuta", lists: ["Conferência de Minuta"] },
+  { label: "Ajustes/retorno", lists: ["Ajuste/Retorno", "Ajustes/Retorno"] },
+  { label: "Agendamento da assinatura", lists: ["Agendar Assinatura"] },
+  { label: "Aguardando assinatura", lists: ["Aguardando Assinatura"] },
+  { label: "Finalizado", lists: ["Finalizado"] },
 ];
 
-export const demoStageIndex = 3;
+/**
+ * Interpreta TRELLO_STAGE_LISTS ("Rótulo | lista alt, Rótulo 2, …").
+ * Retorna null se a variável estiver vazia/ausente (usa defaultStages).
+ */
+export function parseStagesConfig(raw: string | undefined): Stage[] | null {
+  const stages = (raw ?? "")
+    .split(",")
+    .map((entry) => {
+      const names = entry
+        .split("|")
+        .map((name) => name.trim())
+        .filter(Boolean);
+      return names.length > 0 ? { label: names[0], lists: names } : null;
+    })
+    .filter((stage): stage is Stage => stage !== null);
+  return stages.length > 0 ? stages : null;
+}
+
+/** Etapa exibida no modo demonstração (sem credenciais do Trello). */
+export const demoStageIndex = 5;

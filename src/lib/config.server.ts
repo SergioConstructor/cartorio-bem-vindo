@@ -24,14 +24,9 @@ export function getServerConfig() {
     // Environment Variables e num .env local para desenvolvimento.
     trelloApiKey: process.env.TRELLO_API_KEY,
     trelloApiToken: process.env.TRELLO_API_TOKEN,
-    // Opcional: id do workspace do Trello. Se definido, o site só considera os
-    // quadros desse espaço ao descobrir as etapas (evita pegar quadros de
-    // outros assuntos da conta).
-    trelloOrganizationId: process.env.TRELLO_ORGANIZATION_ID,
-    // Opcional: nomes dos quadros-etapa na ordem do fluxo, separados por
-    // vírgula (ex.: "Protocolado, Em análise, Assinaturas, Concluído").
-    // Permite usar os nomes atuais dos quadros sem renomeá-los; se ausente,
-    // vale a convenção "NN · Rótulo" no nome dos quadros.
-    trelloStageBoards: process.env.TRELLO_STAGE_BOARDS,
+    // Opcional: sobrescreve o fluxo de etapas (listas do Trello) sem mexer no
+    // código — ver formato em src/content/tracking.ts. Se ausente, vale o
+    // fluxo padrão do cartório definido lá.
+    trelloStageLists: process.env.TRELLO_STAGE_LISTS,
   };
 }
