@@ -2,27 +2,31 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { getServerConfig } from "../config.server";
-import { stageIndexByBoard, totalStages } from "../../content/tracking";
+import { parseStageBoardName, type OrderedBoard, type Stage } from "../../content/tracking";
 
-// Consulta o andamento ("andamento") de uma escritura pelo número de protocolo.
+// Consulta o andamento de uma escritura pelo número de protocolo.
 //
-// O cartão da escritura migra entre vários quadros do Trello. Usamos a busca
-// global do Trello (/1/search) para achar o cartão pelo protocolo em qualquer
-// quadro e, a partir do quadro atual do cartão, resolvemos em que ETAPA do
-// fluxo público ele está (ver src/content/tracking.ts).
+// Tudo é auto-alimentado pelo Trello, sem configuração no código:
+//   1) As ETAPAS são descobertas listando os quadros da conta (ou do workspace,
+//      se TRELLO_ORGANIZATION_ID estiver definido) e mantendo apenas os que
+//      seguem a convenção de nome "NN · Rótulo" — ver src/content/tracking.ts.
+//   2) O CARTÃO da escritura é achado pela busca global (/1/search) usando o
+//      protocolo que aparece no nome do cartão, em qualquer quadro.
+//   3) O quadro atual do cartão determina a etapa exibida.
 //
-// Privacidade (LGPD): retornamos APENAS o índice da etapa e a data da última
-// atividade — nunca o nome do cartão, descrição, partes ou qualquer conteúdo
-// do Trello.
+// Privacidade (LGPD): retornamos APENAS os rótulos das etapas (nomes dos
+// quadros), o índice da etapa atual e a data da última atividade — nunca o
+// nome do cartão, descrição, partes ou qualquer conteúdo do Trello.
 
 export type TrackingResult =
-  | { status: "ok"; currentStageIndex: number; totalStages: number; updatedAt: string | null }
+  | { status: "ok"; currentStageIndex: number; stages: Stage[]; updatedAt: string | null }
   | { status: "nao_encontrado" }
   | { status: "ambiguo" }
   | { status: "config_pendente" }
   | { status: "erro" };
 
-// Cartão retornado pela busca do Trello (só os campos que usamos).
+type TrelloBoard = { id: string; name: string };
+
 type TrelloCard = {
   id: string;
   name: string;
@@ -30,9 +34,54 @@ type TrelloCard = {
   dateLastActivity?: string | null;
 };
 
-const TRELLO_SEARCH_URL = "https://api.trello.com/1/search";
+const TRELLO_BASE = "https://api.trello.com/1";
 
-// Normaliza para comparar protocolo ignorando maiúsculas e espaços nas bordas.
+// Cache em memória dos quadros-etapa, para não listar os boards a cada
+// consulta pública (rate-limit do Trello). Reinicia a cada cold start.
+const STAGE_BOARDS_TTL_MS = 5 * 60 * 1000;
+let stageBoardsCache: { boards: OrderedBoard[]; expiresAt: number } | null = null;
+
+async function trelloGet<T>(path: string, params: Record<string, string>): Promise<T> {
+  const { trelloApiKey, trelloApiToken } = getServerConfig();
+  const search = new URLSearchParams({
+    ...params,
+    key: trelloApiKey ?? "",
+    token: trelloApiToken ?? "",
+  });
+  const response = await fetch(`${TRELLO_BASE}${path}?${search.toString()}`, {
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new Error(`Trello ${path} falhou: ${response.status} ${response.statusText}`);
+  }
+  return (await response.json()) as T;
+}
+
+// Descobre os quadros-etapa: lista os boards, filtra pela convenção de nome e
+// ordena pelo número. Rótulo da etapa = texto após o número no nome do quadro.
+async function getStageBoards(): Promise<OrderedBoard[]> {
+  if (stageBoardsCache && stageBoardsCache.expiresAt > Date.now()) {
+    return stageBoardsCache.boards;
+  }
+
+  const { trelloOrganizationId } = getServerConfig();
+  const path = trelloOrganizationId
+    ? `/organizations/${trelloOrganizationId}/boards`
+    : "/members/me/boards";
+
+  const boards = await trelloGet<TrelloBoard[]>(path, { fields: "name", filter: "open" });
+
+  const stageBoards = boards
+    .flatMap((board) => {
+      const parsed = parseStageBoardName(board.name);
+      return parsed ? [{ boardId: board.id, order: parsed.order, label: parsed.label }] : [];
+    })
+    .sort((a, b) => a.order - b.order);
+
+  stageBoardsCache = { boards: stageBoards, expiresAt: Date.now() + STAGE_BOARDS_TTL_MS };
+  return stageBoards;
+}
+
 function normalize(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -71,51 +120,50 @@ export const getEscrituraStatus = createServerFn({ method: "POST" })
 
     const protocolo = data.protocolo.trim();
 
-    const params = new URLSearchParams({
-      query: protocolo,
-      modelTypes: "cards",
-      card_fields: "name,idBoard,dateLastActivity",
-      cards_limit: "10",
-      partial: "false",
-      key: trelloApiKey,
-      token: trelloApiToken,
-    });
-
-    let cards: TrelloCard[];
     try {
-      const response = await fetch(`${TRELLO_SEARCH_URL}?${params.toString()}`, {
-        headers: { Accept: "application/json" },
-      });
-      if (!response.ok) {
-        console.error(`Trello search falhou: ${response.status} ${response.statusText}`);
-        return { status: "erro" };
+      const stageBoards = await getStageBoards();
+
+      // Nenhum quadro segue a convenção "NN · Rótulo" ainda → fluxo não montado
+      // no Trello; mostrar a demonstração em vez de quebrar.
+      if (stageBoards.length === 0) {
+        return { status: "config_pendente" };
       }
-      const body = (await response.json()) as { cards?: TrelloCard[] };
-      cards = body.cards ?? [];
+
+      const { cards = [] } = await trelloGet<{ cards?: TrelloCard[] }>("/search", {
+        query: protocolo,
+        modelTypes: "cards",
+        card_fields: "name,idBoard,dateLastActivity",
+        cards_limit: "10",
+        partial: "false",
+      });
+
+      const boardIndex = new Map(stageBoards.map((board, i) => [board.boardId, i]));
+
+      // Mantém só cartões cujo nome contém o protocolo exato e cujo quadro é
+      // uma etapa do fluxo público.
+      const matches = cards
+        .filter((card) => nameMatchesProtocol(card.name, protocolo))
+        .flatMap((card) => {
+          const stageIndex = boardIndex.get(card.idBoard);
+          return stageIndex === undefined ? [] : [{ card, stageIndex }];
+        });
+
+      if (matches.length === 0) {
+        return { status: "nao_encontrado" };
+      }
+      if (matches.length > 1) {
+        return { status: "ambiguo" };
+      }
+
+      const { card, stageIndex } = matches[0];
+      return {
+        status: "ok",
+        currentStageIndex: stageIndex,
+        stages: stageBoards.map(({ label }) => ({ label })),
+        updatedAt: card.dateLastActivity ?? null,
+      };
     } catch (error) {
       console.error("Erro ao consultar o Trello:", error);
       return { status: "erro" };
     }
-
-    // Mantém só cartões cujo nome contém o protocolo exato e cujo quadro está
-    // mapeado como uma etapa pública do fluxo.
-    const matches = cards
-      .filter((card) => nameMatchesProtocol(card.name, protocolo))
-      .map((card) => ({ card, stageIndex: stageIndexByBoard(card.idBoard) }))
-      .filter((entry) => entry.stageIndex >= 0);
-
-    if (matches.length === 0) {
-      return { status: "nao_encontrado" };
-    }
-    if (matches.length > 1) {
-      return { status: "ambiguo" };
-    }
-
-    const { card, stageIndex } = matches[0];
-    return {
-      status: "ok",
-      currentStageIndex: stageIndex,
-      totalStages,
-      updatedAt: card.dateLastActivity ?? null,
-    };
   });

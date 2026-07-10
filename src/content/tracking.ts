@@ -1,73 +1,53 @@
-// Etapas do acompanhamento da escritura ("andamento").
+// Acompanhamento da escritura ("andamento") — convenção dos quadros do Trello.
 //
-// No Trello, o cartão de cada escritura MIGRA entre vários quadros conforme
-// avança no processo. Cada quadro representa uma macro-etapa do fluxo. Este
-// arquivo é a fonte única da verdade que mapeia, EM ORDEM, cada quadro do
-// Trello para uma etapa amigável exibida ao cliente.
+// As etapas NÃO ficam no código: o site descobre os quadros-etapa ao vivo no
+// Trello. Basta o cartório nomear cada quadro com um número na frente, na
+// ordem do fluxo:
 //
-// Como preencher os boardId:
-//   1. Gere API Key e Token do Trello (conta do cartório, permissão de leitura).
-//   2. Liste os quadros e seus IDs:
-//        https://api.trello.com/1/members/me/boards?fields=name&key=SUA_KEY&token=SEU_TOKEN
-//   3. Substitua cada "PREENCHER_ID_N" abaixo pelo id do quadro correspondente,
-//      na ordem em que o processo acontece.
+//   01 · Protocolo recebido
+//   02 · Análise de documentos
+//   03 · Tributos e certidões
+//   ...
 //
-// Enquanto os IDs não forem preenchidos (ou faltarem as credenciais), a página
-// /acompanhar opera em MODO DEMONSTRAÇÃO — ver src/lib/api/tracking.functions.ts.
+// O número define a ORDEM e o texto vira o RÓTULO exibido ao cliente.
+// Separadores aceitos: · . - – — : )  (ex.: "01 - Análise", "2) Minuta").
+// Quadros sem número na frente são ignorados pelo acompanhamento.
+//
+// Cada escritura é um cartão com o número de protocolo no nome
+// (ex.: "2025-00123 — Compra e venda"); mover o cartão entre quadros já
+// atualiza o andamento no site. Nada disso exige mexer no código.
 
-export type TrackingStage = {
-  /** id do quadro (board) no Trello onde o cartão fica nesta etapa */
-  boardId: string;
-  /** rótulo curto exibido na linha do tempo */
+export type Stage = {
+  /** rótulo exibido na linha do tempo (vem do nome do quadro) */
   label: string;
-  /** explicação amigável do que acontece nesta etapa */
-  description: string;
 };
 
-export const trackingStages: TrackingStage[] = [
-  {
-    boardId: "PREENCHER_ID_1",
-    label: "Protocolo recebido",
-    description: "Seu pedido foi registrado e o protocolo aberto no cartório.",
-  },
-  {
-    boardId: "PREENCHER_ID_2",
-    label: "Análise de documentos",
-    description: "Conferimos os documentos e certidões apresentados.",
-  },
-  {
-    boardId: "PREENCHER_ID_3",
-    label: "Tributos e certidões (ITBI)",
-    description: "Emissão de certidões e conferência do recolhimento de tributos.",
-  },
-  {
-    boardId: "PREENCHER_ID_4",
-    label: "Minuta em elaboração",
-    description: "O tabelião prepara a minuta da escritura para conferência das partes.",
-  },
-  {
-    boardId: "PREENCHER_ID_5",
-    label: "Aguardando assinaturas",
-    description: "A escritura aguarda o comparecimento e a assinatura das partes.",
-  },
-  {
-    boardId: "PREENCHER_ID_6",
-    label: "Escritura lavrada",
-    description: "A escritura foi lavrada e assinada, com fé pública.",
-  },
-  {
-    boardId: "PREENCHER_ID_7",
-    label: "Concluída — pronta para retirada",
-    description: "Processo finalizado. A via da escritura está disponível para retirada.",
-  },
-];
+export type OrderedBoard = {
+  boardId: string;
+  order: number;
+  label: string;
+};
 
-export const totalStages = trackingStages.length;
+const STAGE_NAME_RE = /^\s*(\d+)\s*[·.\-–—:)]\s*(.+?)\s*$/u;
 
-/** Índice (0-based) da etapa correspondente ao quadro; -1 se o quadro não estiver mapeado. */
-export function stageIndexByBoard(boardId: string): number {
-  return trackingStages.findIndex((stage) => stage.boardId === boardId);
+/** "01 · Protocolo recebido" → { order: 1, label: "Protocolo recebido" }; null se não seguir a convenção. */
+export function parseStageBoardName(name: string): { order: number; label: string } | null {
+  const match = STAGE_NAME_RE.exec(name);
+  if (!match) return null;
+  return { order: Number(match[1]), label: match[2] };
 }
 
-/** Etapa usada no modo demonstração, quando o Trello ainda não está configurado. */
+// Etapas de DEMONSTRAÇÃO: usadas apenas enquanto o Trello não está configurado
+// (sem credenciais ou sem quadros seguindo a convenção), para pré-visualizar a
+// página. Em produção os rótulos reais vêm dos nomes dos quadros.
+export const demoStages: Stage[] = [
+  { label: "Protocolo recebido" },
+  { label: "Análise de documentos" },
+  { label: "Tributos e certidões (ITBI)" },
+  { label: "Minuta em elaboração" },
+  { label: "Aguardando assinaturas" },
+  { label: "Escritura lavrada" },
+  { label: "Concluída — pronta para retirada" },
+];
+
 export const demoStageIndex = 3;

@@ -9,7 +9,7 @@ import { PageHero } from "@/components/site/PageHero";
 import { SectionHeading } from "@/components/site/SectionHeading";
 import { Progress } from "@/components/ui/progress";
 import { getEscrituraStatus, type TrackingResult } from "@/lib/api/tracking.functions";
-import { demoStageIndex, trackingStages } from "@/content/tracking";
+import { demoStageIndex, demoStages, type Stage } from "@/content/tracking";
 
 export const Route = createFileRoute("/acompanhar")({
   head: () => ({
@@ -141,6 +141,7 @@ function ResultView({ result, protocolo }: { result: TrackingResult; protocolo: 
     case "ok":
       return (
         <Timeline
+          stages={result.stages}
           currentStageIndex={result.currentStageIndex}
           updatedAt={result.updatedAt}
           protocolo={protocolo}
@@ -148,7 +149,13 @@ function ResultView({ result, protocolo }: { result: TrackingResult; protocolo: 
       );
     case "config_pendente":
       return (
-        <Timeline currentStageIndex={demoStageIndex} updatedAt={null} protocolo={protocolo} demo />
+        <Timeline
+          stages={demoStages}
+          currentStageIndex={demoStageIndex}
+          updatedAt={null}
+          protocolo={protocolo}
+          demo
+        />
       );
     case "nao_encontrado":
       return (
@@ -171,17 +178,19 @@ function ResultView({ result, protocolo }: { result: TrackingResult; protocolo: 
 }
 
 function Timeline({
+  stages,
   currentStageIndex,
   updatedAt,
   protocolo,
   demo = false,
 }: {
+  stages: Stage[];
   currentStageIndex: number;
   updatedAt: string | null;
   protocolo: string;
   demo?: boolean;
 }) {
-  const total = trackingStages.length;
+  const total = stages.length;
   const current = Math.min(Math.max(currentStageIndex, 0), total - 1);
   const percent = Math.round(((current + 1) / total) * 100);
   const formatted = formatUpdatedAt(updatedAt);
@@ -201,9 +210,7 @@ function Timeline({
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-secondary/70">
             Protocolo {protocolo}
           </div>
-          <h2 className="mt-1 font-display text-2xl text-secondary">
-            {trackingStages[current].label}
-          </h2>
+          <h2 className="mt-1 font-display text-2xl text-secondary">{stages[current].label}</h2>
         </div>
         <span className="text-sm text-muted-foreground">
           Etapa {current + 1} de {total}
@@ -220,12 +227,12 @@ function Timeline({
       )}
 
       <ol className="mt-8 space-y-0">
-        {trackingStages.map((stage, i) => {
+        {stages.map((stage, i) => {
           const done = i < current;
           const active = i === current;
           const isLast = i === total - 1;
           return (
-            <li key={stage.boardId} className="flex gap-4">
+            <li key={`${i}-${stage.label}`} className="flex gap-4">
               <div className="flex flex-col items-center">
                 <span
                   className={[
@@ -265,9 +272,6 @@ function Timeline({
                     </span>
                   )}
                 </div>
-                <p className="mt-1 text-sm leading-relaxed text-foreground/70">
-                  {stage.description}
-                </p>
               </div>
             </li>
           );
