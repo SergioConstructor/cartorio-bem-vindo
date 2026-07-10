@@ -28,5 +28,10 @@ export function getServerConfig() {
     // quadros desse espaço ao descobrir as etapas (evita pegar quadros de
     // outros assuntos da conta).
     trelloOrganizationId: process.env.TRELLO_ORGANIZATION_ID,
+    // Opcional: nomes dos quadros-etapa na ordem do fluxo, separados por
+    // vírgula (ex.: "Protocolado, Em análise, Assinaturas, Concluído").
+    // Permite usar os nomes atuais dos quadros sem renomeá-los; se ausente,
+    // vale a convenção "NN · Rótulo" no nome dos quadros.
+    trelloStageBoards: process.env.TRELLO_STAGE_BOARDS,
   };
 }

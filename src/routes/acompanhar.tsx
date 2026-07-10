@@ -92,7 +92,7 @@ function AcompanharPage() {
               <div className="flex flex-col gap-3 sm:flex-row">
                 <input
                   {...register("protocolo")}
-                  placeholder="Ex.: 2025-00123"
+                  placeholder="Ex.: 0988"
                   autoComplete="off"
                   inputMode="text"
                   className={inputClass}

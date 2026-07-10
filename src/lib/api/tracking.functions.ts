@@ -57,26 +57,53 @@ async function trelloGet<T>(path: string, params: Record<string, string>): Promi
   return (await response.json()) as T;
 }
 
-// Descobre os quadros-etapa: lista os boards, filtra pela convenção de nome e
-// ordena pelo número. Rótulo da etapa = texto após o número no nome do quadro.
+// Compara nomes de quadros com tolerância: ignora acentos, maiúsculas e
+// espaços extras ("Em Análise " casa com "em analise").
+function normalizeBoardName(name: string): string {
+  return name.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+// Descobre os quadros-etapa. Duas formas, nesta ordem:
+//   1) TRELLO_STAGE_BOARDS definida: nomes dos quadros separados por vírgula,
+//      na ordem do fluxo — usa os nomes atuais do Trello, sem renomear nada.
+//   2) Convenção "NN · Rótulo" no nome dos quadros (número define a ordem).
 async function getStageBoards(): Promise<OrderedBoard[]> {
   if (stageBoardsCache && stageBoardsCache.expiresAt > Date.now()) {
     return stageBoardsCache.boards;
   }
 
-  const { trelloOrganizationId } = getServerConfig();
+  const { trelloOrganizationId, trelloStageBoards } = getServerConfig();
   const path = trelloOrganizationId
     ? `/organizations/${trelloOrganizationId}/boards`
     : "/members/me/boards";
 
   const boards = await trelloGet<TrelloBoard[]>(path, { fields: "name", filter: "open" });
 
-  const stageBoards = boards
-    .flatMap((board) => {
-      const parsed = parseStageBoardName(board.name);
-      return parsed ? [{ boardId: board.id, order: parsed.order, label: parsed.label }] : [];
-    })
-    .sort((a, b) => a.order - b.order);
+  let stageBoards: OrderedBoard[];
+
+  const configuredNames = (trelloStageBoards ?? "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter(Boolean);
+
+  if (configuredNames.length > 0) {
+    const byName = new Map(boards.map((board) => [normalizeBoardName(board.name), board]));
+    stageBoards = configuredNames.flatMap((name, i) => {
+      const board = byName.get(normalizeBoardName(name));
+      if (!board) {
+        console.error(`TRELLO_STAGE_BOARDS: quadro "${name}" não encontrado no Trello`);
+        return [];
+      }
+      return [{ boardId: board.id, order: i, label: board.name }];
+    });
+  } else {
+    stageBoards = boards
+      .flatMap((board) => {
+        const parsed = parseStageBoardName(board.name);
+        return parsed ? [{ boardId: board.id, order: parsed.order, label: parsed.label }] : [];
+      })
+      .sort((a, b) => a.order - b.order);
+  }
 
   stageBoardsCache = { boards: stageBoards, expiresAt: Date.now() + STAGE_BOARDS_TTL_MS };
   return stageBoards;
@@ -88,13 +115,23 @@ function normalize(value: string): string {
 
 // A busca do Trello é "fuzzy"; confirmamos que o protocolo aparece como token
 // exato no nome do cartão (evita casar "123" com "1234"). Consideramos limites
-// de palavra qualquer caractere que não seja letra/número.
+// de palavra qualquer caractere que não seja letra/número. Para tokens só de
+// dígitos, zeros à esquerda são ignorados — o cartório usa nomes como
+// "Prot. (CV-Urbano) -0988", e o cliente pode digitar "0988" ou "988".
+function tokensMatch(a: string, b: string): boolean {
+  if (a === b) return true;
+  if (/^\d+$/.test(a) && /^\d+$/.test(b)) {
+    return a.replace(/^0+(?=\d)/, "") === b.replace(/^0+(?=\d)/, "");
+  }
+  return false;
+}
+
 function nameMatchesProtocol(cardName: string, protocolo: string): boolean {
   const target = normalize(protocolo);
-  const tokens = normalize(cardName)
+  return normalize(cardName)
     .split(/[^\p{L}\p{N}]+/u)
-    .filter(Boolean);
-  return tokens.includes(target);
+    .filter(Boolean)
+    .some((token) => tokensMatch(token, target));
 }
 
 export const getEscrituraStatus = createServerFn({ method: "POST" })
@@ -129,24 +166,39 @@ export const getEscrituraStatus = createServerFn({ method: "POST" })
         return { status: "config_pendente" };
       }
 
-      const { cards = [] } = await trelloGet<{ cards?: TrelloCard[] }>("/search", {
-        query: protocolo,
-        modelTypes: "cards",
-        card_fields: "name,idBoard,dateLastActivity",
-        cards_limit: "10",
-        partial: "false",
-      });
-
       const boardIndex = new Map(stageBoards.map((board, i) => [board.boardId, i]));
+
+      // A busca textual do Trello não sabe que "988" e "0988" são o mesmo
+      // número; para protocolos numéricos tentamos as variantes com e sem
+      // zeros à esquerda até achar o cartão (ex.: "Prot. (CV-Urbano) -0988").
+      const queries = [protocolo];
+      if (/^\d+$/.test(protocolo)) {
+        const stripped = protocolo.replace(/^0+(?=\d)/, "");
+        for (const variant of [stripped, stripped.padStart(4, "0")]) {
+          if (!queries.includes(variant)) queries.push(variant);
+        }
+      }
 
       // Mantém só cartões cujo nome contém o protocolo exato e cujo quadro é
       // uma etapa do fluxo público.
-      const matches = cards
-        .filter((card) => nameMatchesProtocol(card.name, protocolo))
-        .flatMap((card) => {
-          const stageIndex = boardIndex.get(card.idBoard);
-          return stageIndex === undefined ? [] : [{ card, stageIndex }];
+      let matches: { card: TrelloCard; stageIndex: number }[] = [];
+      for (const query of queries) {
+        const { cards = [] } = await trelloGet<{ cards?: TrelloCard[] }>("/search", {
+          query,
+          modelTypes: "cards",
+          card_fields: "name,idBoard,dateLastActivity",
+          cards_limit: "10",
+          partial: "false",
         });
+
+        matches = cards
+          .filter((card) => nameMatchesProtocol(card.name, protocolo))
+          .flatMap((card) => {
+            const stageIndex = boardIndex.get(card.idBoard);
+            return stageIndex === undefined ? [] : [{ card, stageIndex }];
+          });
+        if (matches.length > 0) break;
+      }
 
       if (matches.length === 0) {
         return { status: "nao_encontrado" };
