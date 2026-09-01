@@ -3,7 +3,12 @@ import { z } from "zod";
 
 import { getServerConfig } from "../config.server";
 import { normalizarNome, QUADRO_FLUXO_RE, trelloGet } from "../trello.server";
-import { defaultStages, parseStagesConfig, type Stage } from "../../content/tracking";
+import {
+  defaultStages,
+  escreventeDoQuadro,
+  parseStagesConfig,
+  type Stage,
+} from "../../content/tracking";
 import { normalizarCodigo } from "../protocolo/dossie";
 
 // Consulta o andamento de uma escritura pelo número de protocolo.
@@ -28,6 +33,8 @@ export type TrackingResult =
       currentStageIndex: number;
       stages: { label: string }[];
       updatedAt: string | null;
+      /** Escrevente responsável, quando o cartão está no quadro dela. */
+      escrevente: string | null;
     }
   // Solicitação feita pelo site, ainda na fila de conferência do cartório:
   // não é uma etapa do fluxo oficial, então tem estado próprio.
@@ -171,6 +178,7 @@ async function consultarPorCodigo(codigo: string, stages: Stage[]): Promise<Trac
       currentStageIndex: stageIndex,
       stages: stages.map(({ label }) => ({ label })),
       updatedAt: card.dateLastActivity ?? null,
+      escrevente: escreventeDoQuadro(board.name),
     };
   }
 
@@ -268,7 +276,7 @@ export const getEscrituraStatus = createServerFn({ method: "POST" })
             fields: "name",
           }));
         const stageIndex = stageIndexByList(stages, list.name);
-        if (stageIndex >= 0) inStages.push({ card, stageIndex });
+        if (stageIndex >= 0) inStages.push({ card, stageIndex, boardName: board.name });
       }
 
       let result: TrackingResult;
@@ -282,6 +290,7 @@ export const getEscrituraStatus = createServerFn({ method: "POST" })
           currentStageIndex: inStages[0].stageIndex,
           stages: stages.map(({ label }) => ({ label })),
           updatedAt: inStages[0].card.dateLastActivity ?? null,
+          escrevente: escreventeDoQuadro(inStages[0].boardName),
         };
       }
       cacheResult(target, result);
