@@ -11,7 +11,7 @@ import {
   visivel,
   type Respostas,
 } from "./dossie";
-import { sanearTelefone, sanearTexto } from "./texto";
+import { sanearMarkdown, sanearTelefone, sanearTexto } from "./texto";
 import { criarUploadToken, lerUploadToken } from "./upload-token";
 import { dossieBase } from "../../content/protocolo/atos";
 
@@ -178,9 +178,16 @@ describe("saneamento do nome do arquivo", () => {
 });
 
 describe("saneamento de texto", () => {
-  it("neutraliza markdown que afetaria o cartão do Trello", () => {
-    expect(sanearTexto("![img](http://x)", "nome")).not.toContain("](");
-    expect(sanearTexto("**negrito**", "nome")).toBe("\\*\\*negrito\\*\\*");
+  it("neutraliza markdown na DESCRIÇÃO do cartão", () => {
+    expect(sanearMarkdown("![img](http://x)", "nome")).not.toContain("](");
+    expect(sanearMarkdown("**negrito**", "nome")).toBe("\\*\\*negrito\\*\\*");
+  });
+
+  it("NÃO escapa markdown fora da descrição (nome do cartão, campos)", () => {
+    // O nome do cartão e os campos personalizados não são markdown no Trello:
+    // escapar ali encheria "MARIA (SILVA)" de contrabarras.
+    expect(sanearTexto("MARIA (SILVA) DE SOUZA", "nome")).toBe("MARIA (SILVA) DE SOUZA");
+    expect(sanearTexto("**negrito**", "nome")).toBe("**negrito**");
   });
 
   it("remove caracteres de controle e colapsa espaços", () => {
@@ -236,5 +243,58 @@ describe("token de upload", () => {
     expect(await lerUploadToken("", SEGREDO)).toBeNull();
     expect(await lerUploadToken("sem-ponto", SEGREDO)).toBeNull();
     expect(await lerUploadToken("a.b.c", SEGREDO)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regressões vindas da revisão adversarial
+// ---------------------------------------------------------------------------
+
+describe("regressões da revisão", () => {
+  it("sanear a resposta ANTES de calcular o dossiê quebraria o casamento", () => {
+    // A revisão pegou isto: sanearMarkdown escapa parênteses, e as opções da
+    // triagem têm parênteses ("Casado(a)"). Se o servidor saneasse antes de
+    // chamar itensDossie, nenhuma opção casaria e os documentos condicionais
+    // sumiriam do cartão em silêncio.
+    const cru = "Casado(a)";
+    const escapado = sanearMarkdown(cru, "resposta");
+    expect(escapado).not.toBe(cru);
+
+    const comCru = itensDossie("CV-Urbano", { t_tipo: "Pessoa física", t_civil: cru });
+    const comEscapado = itensDossie("CV-Urbano", {
+      t_tipo: "Pessoa física",
+      t_civil: escapado,
+    });
+    expect(comCru).toContain("Certidão de casamento (transmitente)");
+    expect(comEscapado).not.toContain("Certidão de casamento (transmitente)");
+  });
+
+  it("o nome do cartão não ganha contrabarras", () => {
+    const titulo = tituloCartao("CV-Urbano", "S-XK4M2P", sanearTexto("Maria (Silva)", "nome"));
+    expect(titulo).not.toContain("\\");
+    expect(titulo).toContain("MARIA (SILVA)");
+  });
+
+  it("respostas órfãs não entram na contagem de perguntas visíveis", () => {
+    // Cliente respondeu regime de bens e depois mudou para solteiro: a
+    // resposta continua no estado, mas não pode aparecer no cartão.
+    const respostas: Respostas = {
+      t_tipo: "Pessoa física",
+      t_civil: "Solteiro(a)",
+      t_regime: "Comunhão parcial",
+    };
+    const visiveis = perguntasVisiveis("CV-Urbano", respostas).map((p) => p.id);
+    expect(visiveis).not.toContain("t_regime");
+    expect(respostas.t_regime).toBeDefined();
+  });
+
+  it("o código gerado sempre passa pela regex do formulário de acompanhamento", () => {
+    const regexFormulario = /^(\d{1,10}|[Ss]-?[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{6})$/u;
+    for (let i = 0; i < 100; i++) {
+      expect(gerarCodigo()).toMatch(regexFormulario);
+    }
+    // E um código com letra ambígua é recusado pelos dois lados.
+    expect(regexFormulario.test("S-XKIM2P")).toBe(false);
+    expect(normalizarCodigo("S-XKIM2P")).toBeNull();
   });
 });

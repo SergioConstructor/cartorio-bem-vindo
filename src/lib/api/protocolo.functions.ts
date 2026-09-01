@@ -9,11 +9,18 @@ import {
   trelloAnexar,
   trelloGet,
   trelloWrite,
+  trelloWriteJson,
 } from "../trello.server";
 import { verificarTurnstile } from "../turnstile.server";
-import { gerarCodigo, itensDossie, tituloCartao, type Respostas } from "../protocolo/dossie";
+import {
+  gerarCodigo,
+  itensDossie,
+  tituloCartao,
+  visivel,
+  type Respostas,
+} from "../protocolo/dossie";
 import { criarUploadToken, lerUploadToken } from "../protocolo/upload-token";
-import { sanearTelefone, sanearTexto } from "../protocolo/texto";
+import { sanearMarkdown, sanearTelefone, sanearTexto } from "../protocolo/texto";
 import {
   MAX_ARQUIVOS,
   MAX_BYTES_ARQUIVO,
@@ -27,18 +34,21 @@ import { perguntasDoAto } from "../../content/protocolo/triagem";
 // os PDFs anexados.
 //
 // Diferente de /acompanhar (só leitura), esta é uma superfície pública de
-// ESCRITA. As proteções, da borda para dentro:
-//   1. Cloudflare Turnstile (obrigatório — sem ele nada é criado)
-//   2. limite por IP e teto diário global
-//   3. tempo mínimo de preenchimento e campo-armadilha
+// ESCRITA. As proteções, na ordem em que rodam:
+//   1. heurísticas baratas (campo-armadilha, tempo mínimo de preenchimento)
+//   2. Cloudflare Turnstile — obrigatório, e ANTES de consumir qualquer cota,
+//      para que um robô sem captcha não consiga esgotar o teto do dia
+//   3. limite por IP e teto diário global
 //   4. PDF conferido por assinatura de arquivo, não por extensão
-//   5. token HMAC de curta duração no lugar do id do cartão
+//   5. token HMAC de curta duração no lugar do id do cartão, e o número de
+//      anexos conferido no PRÓPRIO cartão (fonte de verdade), não no token
 //
-// O cartão nasce como cópia do cartão-modelo do ato — herda a checklist e a
-// descrição padrão que o cartório mantém no próprio Trello.
+// O cartão nasce como cópia do cartão-modelo do ato: herda a checklist do
+// modelo e a descrição padrão é preservada acima do bloco do envio.
 
 const NOME_LISTA_ENTRADA_PADRAO = "Pré-protocolo (site)";
 const MIN_SEGUNDOS_PREENCHIMENTO = 10;
+const MAX_CARACTERES_DESC = 12_000;
 
 export type ResultadoEnvio =
   | { status: "ok"; codigo: string; uploadToken: string | null; maxArquivos: number }
@@ -55,6 +65,9 @@ export type ResultadoAnexo =
   | { status: "limite" }
   | { status: "erro" };
 
+/** Modo de operação da página, decidido pelo SERVIDOR (o cliente só reflete). */
+export type ModoPagina = "ativo" | "demonstracao";
+
 // ---------------------------------------------------------------------------
 // Limites da superfície pública
 // ---------------------------------------------------------------------------
@@ -64,7 +77,7 @@ export type ResultadoAnexo =
 // limite realmente durável, trocar por Upstash/Vercel KV.
 const JANELA_MS = 10 * 60 * 1000;
 const MAX_ENVIOS_POR_IP = 5;
-const MAX_ANEXOS_POR_IP = 30;
+const MAX_ANEXOS_POR_IP = 60;
 const MAX_ENVIOS_POR_DIA = 200;
 
 const porIp = new Map<string, { envios: number[]; anexos: number[] }>();
@@ -73,7 +86,16 @@ let enviosNoDia = 0;
 
 function registrar(ip: string, tipo: "envios" | "anexos", maximo: number): boolean {
   const agora = Date.now();
-  if (porIp.size > 5000) porIp.clear();
+  // Descarta só os registros já vencidos — limpar o mapa inteiro zeraria o
+  // limite de todo mundo e daria ao atacante um jeito barato de se livrar dele.
+  if (porIp.size > 5000) {
+    for (const [chave, registro] of porIp) {
+      const vivo =
+        registro.envios.some((t) => agora - t < JANELA_MS) ||
+        registro.anexos.some((t) => agora - t < JANELA_MS);
+      if (!vivo) porIp.delete(chave);
+    }
+  }
 
   const registro = porIp.get(ip) ?? { envios: [], anexos: [] };
   const recentes = registro[tipo].filter((t) => agora - t < JANELA_MS);
@@ -89,7 +111,9 @@ function registrar(ip: string, tipo: "envios" | "anexos", maximo: number): boole
 }
 
 function dentroDoTetoDiario(): boolean {
-  const hoje = new Date().toISOString().slice(0, 10);
+  // Dia no fuso do cartório: virar a contagem às 21h locais (meia-noite UTC)
+  // deixaria o expediente seguinte refém do teto queimado na véspera.
+  const hoje = new Date().toLocaleDateString("en-CA", { timeZone: "America/Maceio" });
   if (hoje !== diaAtual) {
     diaAtual = hoje;
     enviosNoDia = 0;
@@ -115,19 +139,21 @@ function ipDoCliente(): string {
 
 type TrelloQuadro = { id: string; name: string };
 type TrelloLista = { id: string; name: string };
-type TrelloCartao = { id: string; name: string; isTemplate?: boolean };
+type TrelloCartao = { id: string; name: string; desc?: string; isTemplate?: boolean };
 type TrelloCampo = { id: string; name: string; type: string };
+
+type Modelo = { id: string; desc: string };
 
 type Estrutura = {
   listaEntradaId: string;
-  modelosPorAto: Record<string, string>;
+  modelosPorAto: Record<string, Modelo>;
   campos: TrelloCampo[];
 };
 
 const CACHE_MS = 5 * 60 * 1000;
 let estruturaCache: { valor: Estrutura; expiraEm: number } | null = null;
 
-/** Acha o quadro "00. …" e, dentro dele, a lista de entrada, os cartões-modelo e os campos. */
+/** Acha o quadro "00. …" e, dentro dele, a lista de entrada, os modelos e os campos. */
 async function obterEstrutura(): Promise<Estrutura | null> {
   if (estruturaCache && estruturaCache.expiraEm > Date.now()) return estruturaCache.valor;
 
@@ -153,17 +179,20 @@ async function obterEstrutura(): Promise<Estrutura | null> {
   }
 
   // Cartões-modelo: o cartório mantém um por ato, nomeado "Prot. (CV-Urbano) -".
+  // Guardamos também a descrição, para preservá-la no cartão criado (o `desc`
+  // que passamos no POST sobrescreveria a do modelo).
   const cartoes = await trelloGet<TrelloCartao[]>(`/boards/${quadro.id}/cards`, {
-    fields: "name,isTemplate",
+    fields: "name,desc,isTemplate",
     filter: "all",
   });
-  const modelosPorAto: Record<string, string> = {};
+  const modelosPorAto: Record<string, Modelo> = {};
   for (const cartao of cartoes) {
     if (!cartao.isTemplate) continue;
     const ato = /^\s*prot\.?\s*\(([^)]+)\)/i.exec(cartao.name)?.[1];
     if (!ato) continue;
     const chave = normalizarNome(ato);
-    if (!(chave in modelosPorAto)) modelosPorAto[chave] = cartao.id;
+    if (!(chave in modelosPorAto))
+      modelosPorAto[chave] = { id: cartao.id, desc: cartao.desc ?? "" };
   }
 
   const campos = await trelloGet<TrelloCampo[]>(`/boards/${quadro.id}/customFields`, {}).catch(
@@ -185,9 +214,11 @@ async function preencherCampo(
   const campo = campos.find((c) => normalizarNome(c.name) === alvo);
   if (!campo || campo.type !== "text") return;
   try {
-    await trelloWrite(
+    // Este endpoint é exceção na API do Trello: exige corpo JSON com o valor
+    // aninhado, e não um parâmetro de query.
+    await trelloWriteJson(
       `/cards/${cardId}/customField/${campo.id}/item`,
-      { value: JSON.stringify({ text: valor.slice(0, 200) }) },
+      { value: { text: valor.slice(0, 200) } },
       "PUT",
     );
   } catch (erro) {
@@ -203,6 +234,7 @@ async function preencherCampo(
 function blocoDoEnvio(dados: EnvioValidado, codigo: string, itens: string[]): string {
   const P = PAPEIS[dados.ato];
   const agora = new Date().toLocaleString("pt-BR", { timeZone: "America/Maceio" });
+  const texto = (valor: string) => sanearMarkdown(valor, "resposta");
 
   const linhas: string[] = [
     "---",
@@ -211,11 +243,16 @@ function blocoDoEnvio(dados: EnvioValidado, codigo: string, itens: string[]): st
     "",
     `**Recebido em:** ${agora}`,
     `**Ato declarado:** ${ATO_NOME[dados.ato]}`,
-    `**Apresentante:** ${dados.apresentanteNome} — ${dados.apresentanteTelefone}`,
-    `**${P.ra}:** ${dados.parteNome}${dados.parteTelefone ? ` — ${dados.parteTelefone}` : ""}`,
+    `**Apresentante:** ${texto(dados.apresentanteNome)} — ${dados.apresentanteTelefone}`,
+    `**${P.ra}:** ${texto(dados.parteNome)}${
+      dados.parteTelefone ? ` — ${dados.parteTelefone}` : ""
+    }`,
+    `**Autorização LGPD:** aceita pelo cliente em ${agora}`,
   ];
 
-  if (dados.escrevente) linhas.push(`**Escrevente indicado pelo cliente:** ${dados.escrevente}`);
+  if (dados.escrevente) {
+    linhas.push(`**Escrevente indicado pelo cliente:** ${texto(dados.escrevente)}`);
+  }
   if (dados.urgente) linhas.push("**⚑ Marcado como urgente pelo cliente**");
 
   linhas.push(
@@ -227,13 +264,15 @@ function blocoDoEnvio(dados: EnvioValidado, codigo: string, itens: string[]): st
     "",
   );
 
-  const perguntas = perguntasDoAto(dados.ato);
+  // Só as perguntas que estavam VISÍVEIS para o cliente: uma resposta órfã
+  // (de pergunta que sumiu quando ele mudou outra) contradiria o cartão.
   let respondidas = 0;
-  for (const pergunta of perguntas) {
+  for (const pergunta of perguntasDoAto(dados.ato)) {
+    if (!visivel(pergunta, dados.respostas)) continue;
     const resposta = dados.respostas[pergunta.id];
     if (!resposta) continue;
-    const texto = Array.isArray(resposta) ? resposta.join(", ") : resposta;
-    linhas.push(`- **${pergunta.titulo}** ${texto}`);
+    const valor = Array.isArray(resposta) ? resposta.join(", ") : resposta;
+    linhas.push(`- **${pergunta.titulo}** ${texto(valor)}`);
     respondidas += 1;
   }
   if (respondidas === 0) linhas.push("_O cliente não respondeu nenhuma pergunta da triagem._");
@@ -249,11 +288,27 @@ function blocoDoEnvio(dados: EnvioValidado, codigo: string, itens: string[]): st
   );
 
   if (dados.observacoes) {
-    linhas.push("", "### Observações do cliente", "", dados.observacoes);
+    linhas.push(
+      "",
+      "### Observações do cliente",
+      "",
+      sanearMarkdown(dados.observacoes, "observacoes"),
+    );
   }
 
   return linhas.join("\n");
 }
+
+// ---------------------------------------------------------------------------
+// Estado da configuração (o cliente pergunta ao servidor, não adivinha)
+// ---------------------------------------------------------------------------
+
+export const obterModoProtocolo = createServerFn({ method: "GET" }).handler(
+  async (): Promise<ModoPagina> => {
+    const { trelloApiKey, trelloApiToken, turnstileSecretKey } = getServerConfig();
+    return trelloApiKey && trelloApiToken && turnstileSecretKey ? "ativo" : "demonstracao";
+  },
+);
 
 // ---------------------------------------------------------------------------
 // Envio do formulário
@@ -269,13 +324,20 @@ const envioSchema = z.object({
   parteTelefone: z.string().trim().max(30).optional().default(""),
   escrevente: z.string().trim().max(40).optional().default(""),
   urgente: z.boolean().optional().default(false),
-  respostas: z.record(
-    z.string(),
-    z.union([z.string().max(200), z.array(z.string().max(200)).max(20)]),
-  ),
+  // Teto de chaves: sem isso, um payload com milhares de respostas inflaria a
+  // descrição do cartão e a requisição ao Trello.
+  respostas: z
+    .record(
+      z.string().max(60),
+      z.union([z.string().max(200), z.array(z.string().max(200)).max(20)]),
+    )
+    .refine((r) => Object.keys(r).length <= 60, "Triagem inválida."),
   documentosEmMaos: z.array(z.string().max(200)).max(80).optional().default([]),
   observacoes: z.string().trim().max(1500).optional().default(""),
   quantidadeArquivos: z.number().int().min(0).max(MAX_ARQUIVOS).optional().default(0),
+  // O aceite da LGPD é condição do tratamento dos dados: exigido no servidor,
+  // não só no navegador.
+  aceiteLgpd: z.literal(true),
   captchaToken: z.string().max(4000).optional().default(""),
   // Campo-armadilha: fica escondido no formulário; humano nunca preenche.
   armadilha: z.string().max(200).optional().default(""),
@@ -307,21 +369,28 @@ export const enviarProtocolo = createServerFn({ method: "POST" })
       return { status: "demonstracao", codigo: gerarCodigo() };
     }
 
-    // Armadilhas silenciosas: respondemos "ok" falso para não ensinar o robô.
+    // Armadilhas silenciosas: respondemos com "limite" para não ensinar o robô.
     if (data.armadilha.trim() !== "" || data.duracaoMs < MIN_SEGUNDOS_PREENCHIMENTO * 1000) {
       console.warn("Envio bloqueado por heurística anti-robô.");
       return { status: "limite" };
     }
 
     const ip = ipDoCliente();
-    if (!registrar(ip, "envios", MAX_ENVIOS_POR_IP) || !dentroDoTetoDiario()) {
-      return { status: "limite" };
-    }
 
+    // O captcha vem ANTES de consumir cota: se as cotas fossem debitadas
+    // primeiro, bastaria um robô sem captcha nenhum para esgotar o teto do dia
+    // e derrubar o formulário para os clientes de verdade.
     if (!data.captchaToken || !(await verificarTurnstile(data.captchaToken, ip))) {
       return { status: "captcha" };
     }
 
+    if (!registrar(ip, "envios", MAX_ENVIOS_POR_IP) || !dentroDoTetoDiario()) {
+      return { status: "limite" };
+    }
+
+    // As respostas seguem CRUAS para a lógica: o dossiê e a visibilidade
+    // comparam com os valores literais de triagem.ts, e sanear antes quebraria
+    // esse casamento (parênteses viram "\(", nada bate, documentos somem).
     const dados: EnvioValidado = {
       ato: data.ato,
       apresentanteNome: sanearTexto(data.apresentanteNome, "nome"),
@@ -330,15 +399,8 @@ export const enviarProtocolo = createServerFn({ method: "POST" })
       parteTelefone: sanearTelefone(data.parteTelefone),
       escrevente: sanearTexto(data.escrevente, "nome"),
       urgente: data.urgente,
-      respostas: Object.fromEntries(
-        Object.entries(data.respostas).map(([chave, valor]) => [
-          chave,
-          Array.isArray(valor)
-            ? valor.map((v) => sanearTexto(v, "resposta"))
-            : sanearTexto(valor, "resposta"),
-        ]),
-      ),
-      documentosEmMaos: data.documentosEmMaos.map((d) => sanearTexto(d, "resposta")),
+      respostas: data.respostas,
+      documentosEmMaos: [],
       observacoes: sanearTexto(data.observacoes, "observacoes"),
     };
 
@@ -347,20 +409,28 @@ export const enviarProtocolo = createServerFn({ method: "POST" })
       if (!estrutura) return { status: "config_pendente" };
 
       const codigo = gerarCodigo();
-      // Recalculamos o dossiê no servidor: a lista que o cliente mandou é só
-      // para sabermos o que ele marcou, nunca a fonte da verdade.
+      // O dossiê é recalculado no servidor: a lista que veio do cliente serve
+      // só para sabermos o que ele marcou.
       const itens = itensDossie(dados.ato, dados.respostas);
-      const marcados = new Set(dados.documentosEmMaos);
-      dados.documentosEmMaos = itens.filter((item) => marcados.has(sanearTexto(item, "resposta")));
+      const marcados = new Set(data.documentosEmMaos);
+      dados.documentosEmMaos = itens.filter((item) => marcados.has(item));
 
-      const modeloId = estrutura.modelosPorAto[normalizarNome(dados.ato)];
+      const modelo = estrutura.modelosPorAto[normalizarNome(dados.ato)];
+
+      // Preservamos a descrição do modelo acima do bloco do envio: o `desc`
+      // explícito do POST substituiria a descrição herdada de idCardSource.
+      const bloco = blocoDoEnvio(dados, codigo, itens);
+      const desc = (modelo?.desc ? `${modelo.desc}\n\n${bloco}` : bloco).slice(
+        0,
+        MAX_CARACTERES_DESC,
+      );
 
       const cartao = await trelloWrite<{ id: string }>("/cards", {
         idList: estrutura.listaEntradaId,
         name: tituloCartao(dados.ato, codigo, dados.parteNome),
-        desc: blocoDoEnvio(dados, codigo, itens).slice(0, 16_000),
+        desc,
         pos: "top",
-        ...(modeloId ? { idCardSource: modeloId, keepFromSource: "checklists,labels" } : {}),
+        ...(modelo ? { idCardSource: modelo.id, keepFromSource: "checklists,labels" } : {}),
       });
 
       await preencherCampo(cartao.id, estrutura.campos, "Apresentante", dados.apresentanteNome);
@@ -405,8 +475,7 @@ export const anexarDocumento = createServerFn({ method: "POST" })
 
     const token = data.get("token");
     const arquivo = data.get("arquivo");
-    const indiceBruto = Number(data.get("indice") ?? 0);
-    const indice = Number.isInteger(indiceBruto) && indiceBruto >= 0 ? indiceBruto : 0;
+    const tamanhoDeclarado = Number(data.get("tamanho"));
 
     if (typeof token !== "string" || !(arquivo instanceof File)) {
       return { status: "recusado", motivo: "Envio inválido." };
@@ -414,7 +483,6 @@ export const anexarDocumento = createServerFn({ method: "POST" })
 
     const conteudo = await lerUploadToken(token, segredo);
     if (!conteudo) return { status: "expirado" };
-    if (indice >= conteudo.n || indice >= MAX_ARQUIVOS) return { status: "limite" };
 
     const ip = ipDoCliente();
     if (!registrar(ip, "anexos", MAX_ANEXOS_POR_IP)) return { status: "limite" };
@@ -425,12 +493,25 @@ export const anexarDocumento = createServerFn({ method: "POST" })
     }
 
     const bytes = new Uint8Array(await arquivo.arrayBuffer());
-    const validacao = validarPdf(bytes, arquivo.size);
+    const validacao = validarPdf(
+      bytes,
+      Number.isFinite(tamanhoDeclarado) ? tamanhoDeclarado : undefined,
+    );
     if (!validacao.ok) return { status: "recusado", motivo: validacao.motivo };
 
-    const nome = sanearNomeArquivo(arquivo.name, indice);
+    const nome = sanearNomeArquivo(arquivo.name, 0);
 
     try {
+      // Quantos anexos o cartão JÁ tem é a única fonte de verdade confiável: o
+      // token diz quantos foram autorizados, mas ele é sem estado e poderia ser
+      // reapresentado à vontade dentro da validade.
+      const existentes = await trelloGet<{ id: string }[]>(`/cards/${conteudo.c}/attachments`, {
+        fields: "id",
+      });
+      if (existentes.length >= Math.min(conteudo.n, MAX_ARQUIVOS)) {
+        return { status: "limite" };
+      }
+
       await trelloAnexar(conteudo.c, { nome, bytes, tipo: "application/pdf" });
       return { status: "ok", nome };
     } catch (erro) {

@@ -9,6 +9,7 @@ import { useEffect, useRef } from "react";
 declare global {
   interface Window {
     turnstile?: {
+      reset: (id?: string) => void;
       render: (
         alvo: HTMLElement,
         opcoes: {
@@ -49,7 +50,14 @@ function carregarScript(): Promise<void> {
   });
 }
 
-export function Turnstile({ onToken }: { onToken: (token: string | null) => void }) {
+export function Turnstile({
+  onToken,
+  resetKey = 0,
+}: {
+  onToken: (token: string | null) => void;
+  /** Mude este número para pedir um token novo (o anterior já foi consumido). */
+  resetKey?: number;
+}) {
   const alvo = useRef<HTMLDivElement>(null);
   const aoToken = useRef(onToken);
   aoToken.current = onToken;
@@ -78,7 +86,7 @@ export function Turnstile({ onToken }: { onToken: (token: string | null) => void
       cancelado = true;
       if (widgetId && window.turnstile) window.turnstile.remove(widgetId);
     };
-  }, []);
+  }, [resetKey]);
 
   if (!TURNSTILE_SITE_KEY) return null;
   return <div ref={alvo} className="flex justify-center" />;

@@ -1,6 +1,10 @@
-// Saneamento do texto que o cliente digita antes de virar descrição de cartão
-// no Trello. A descrição é markdown, então texto cru poderia inserir imagens,
-// links e blocos que confundem a escrevente.
+// Saneamento do texto que o cliente digita antes de chegar ao Trello.
+//
+// Há DOIS destinos, com regras diferentes:
+//   - descrição do cartão: é markdown, então a sintaxe precisa ser neutralizada
+//     (senão o cliente insere imagens, links e títulos no cartão da escrevente);
+//   - nome do cartão e campos personalizados: NÃO são markdown, então escapar
+//     ali só encheria o nome de contrabarras.
 
 const LIMITES = {
   nome: 120,
@@ -11,10 +15,7 @@ const LIMITES = {
 
 export type CampoTexto = keyof typeof LIMITES;
 
-/**
- * Remove caracteres de controle, colapsa espaços, corta no limite do campo e
- * neutraliza a sintaxe de markdown que teria efeito visual no cartão.
- */
+/** Remove caracteres de controle, colapsa espaços e corta no limite do campo. */
 export function sanearTexto(valor: string, campo: CampoTexto): string {
   const semControle = Array.from(valor)
     .filter((c) => {
@@ -23,15 +24,15 @@ export function sanearTexto(valor: string, campo: CampoTexto): string {
     })
     .join("");
 
-  return (
-    semControle
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, LIMITES[campo])
-      // Escapa o que o Trello interpretaria como markdown.
-      .replace(/([\\`*_[\]()#>|~])/g, "\\$1")
-      .trim()
-  );
+  return semControle.replace(/\s+/g, " ").trim().slice(0, LIMITES[campo]);
+}
+
+/**
+ * Versão para a DESCRIÇÃO do cartão: além do saneamento normal, neutraliza a
+ * sintaxe de markdown. Use só onde o texto vira markdown.
+ */
+export function sanearMarkdown(valor: string, campo: CampoTexto): string {
+  return sanearTexto(valor, campo).replace(/([\\`*_[\]()#>|~])/g, "\\$1");
 }
 
 /** Telefone só com dígitos, espaços e os separadores usuais. */

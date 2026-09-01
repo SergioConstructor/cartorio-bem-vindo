@@ -22,7 +22,8 @@ export function DossieRail({
       <h3 className="font-display text-[11px] uppercase tracking-[0.16em] text-secondary-foreground/65">
         Documentos deste caso
       </h3>
-      <p className="mt-1 mb-4 min-h-5 font-display text-[13px] break-words">{titulo}</p>
+      {titulo && <p className="mt-1 font-display text-[13px] break-words">{titulo}</p>}
+      <div className="mb-4" />
 
       {itens.length === 0 ? (
         <p className="text-sm text-secondary-foreground/70">

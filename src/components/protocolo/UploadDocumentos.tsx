@@ -77,7 +77,7 @@ export function UploadDocumentos({
         <Upload size={22} className="text-primary" aria-hidden />
         <span className="text-sm font-medium text-secondary">Escolher arquivos PDF (opcional)</span>
         <span className="text-xs text-muted-foreground">
-          Até {MAX_ARQUIVOS} arquivos, 4 MB cada. O que faltar você leva ao balcão.
+          Até {MAX_ARQUIVOS} arquivos, 4 MB cada (20 MB no total). O que faltar você leva ao balcão.
         </span>
       </button>
 
@@ -97,7 +97,7 @@ export function UploadDocumentos({
                 type="button"
                 onClick={() => onRemover(id)}
                 disabled={desabilitado}
-                className="flex-none rounded-sm p-1 text-muted-foreground transition-colors hover:text-primary disabled:opacity-50"
+                className="flex-none rounded-sm p-2 text-muted-foreground transition-colors hover:text-primary disabled:opacity-50"
                 aria-label={`Remover ${file.name}`}
               >
                 <Trash2 size={15} aria-hidden />

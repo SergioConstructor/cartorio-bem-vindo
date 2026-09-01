@@ -186,7 +186,7 @@ export const getEscrituraStatus = createServerFn({ method: "POST" })
         .string()
         .trim()
         .regex(
-          /^(\d{1,10}|[Ss]-?[0-9A-Za-z]{6})$/u,
+          /^(\d{1,10}|[Ss]-?[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{6})$/u,
           "Informe o número do protocolo ou o código recebido no site.",
         ),
     }),
@@ -201,6 +201,12 @@ export const getEscrituraStatus = createServerFn({ method: "POST" })
 
     const stages = getStages();
     const codigo = normalizarCodigo(data.protocolo);
+    // Parece código do site mas não passou na normalização (letra fora do
+    // alfabeto, por exemplo): não faz sentido cair na busca numérica e gastar
+    // uma consulta ao Trello com um alvo impossível.
+    if (!codigo && /^[Ss]-?[^0-9]/.test(data.protocolo)) {
+      return { status: "nao_encontrado" };
+    }
     const target = codigo ?? stripLeadingZeros(data.protocolo);
 
     const cached = cachedResult(target);

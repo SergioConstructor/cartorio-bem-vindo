@@ -1,11 +1,14 @@
-import { AlertTriangle } from "lucide-react";
-
 import type { Pergunta } from "@/content/protocolo/triagem";
 import type { Respostas } from "@/lib/protocolo/dossie";
 
 // Renderiza as perguntas visíveis da triagem. Toda pergunta é opcional: quem
 // responde é o cliente, e "não sei" é uma resposta legítima — o cartório
 // confere tudo no atendimento.
+//
+// Os `aviso` das opções NÃO são exibidos: são instruções internas para a
+// escrevente ("o gerador insere a cláusula de continuidade registral") e só
+// confundiriam o cliente. Eles seguem para o cartão, onde têm leitor certo.
+// Ao cliente mostramos apenas `ajuda`, em linguagem simples.
 
 export function TriagemPerguntas({
   perguntas,
@@ -81,24 +84,6 @@ export function TriagemPerguntas({
                 })}
               </div>
             )}
-
-            {/* Aviso jurídico da opção escolhida */}
-            {!pergunta.multi &&
-              typeof resposta === "string" &&
-              (() => {
-                const aviso = pergunta.ops?.find((o) => o.v === resposta)?.aviso;
-                if (!aviso) return null;
-                return (
-                  <p className="mt-2.5 flex gap-2 rounded-r-sm border-l-[3px] border-primary bg-accent/60 px-3 py-2 text-[12.5px] text-secondary">
-                    <AlertTriangle
-                      size={14}
-                      className="mt-0.5 flex-none text-primary"
-                      aria-hidden
-                    />
-                    <span>{aviso}</span>
-                  </p>
-                );
-              })()}
           </fieldset>
         );
       })}

@@ -1,5 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -35,7 +36,11 @@ import {
   tituloCartao,
   type Respostas,
 } from "@/lib/protocolo/dossie";
-import { anexarDocumento, enviarProtocolo } from "@/lib/api/protocolo.functions";
+import {
+  anexarDocumento,
+  enviarProtocolo,
+  obterModoProtocolo,
+} from "@/lib/api/protocolo.functions";
 
 export const Route = createFileRoute("/protocolo")({
   head: () => ({
@@ -62,6 +67,35 @@ export const Route = createFileRoute("/protocolo")({
 const WHATSAPP_URL = "https://wa.me/5579999760702";
 
 const PASSOS = ["Ato", "Seus dados", "Perguntas", "Documentos", "Revisão"] as const;
+
+// Rascunho guardado no próprio navegador: o formulário tem 5 passos e dezenas
+// de perguntas, e no celular basta atender uma ligação para perder tudo.
+// Ficam de fora os arquivos (não são serializáveis) e o aceite da LGPD, que
+// deve ser dado conscientemente a cada envio.
+const CHAVE_RASCUNHO = "cn2o:protocolo:rascunho";
+
+type Rascunho = {
+  passo: number;
+  ato: AtoId | null;
+  respostas: Respostas;
+  emMaos: string[];
+  apresentanteNome: string;
+  apresentanteTelefone: string;
+  parteNome: string;
+  parteTelefone: string;
+  escrevente: string;
+  urgente: boolean;
+  observacoes: string;
+};
+
+function lerRascunho(): Partial<Rascunho> | null {
+  try {
+    const bruto = sessionStorage.getItem(CHAVE_RASCUNHO);
+    return bruto ? (JSON.parse(bruto) as Partial<Rascunho>) : null;
+  } catch {
+    return null;
+  }
+}
 
 const inputClass =
   "w-full rounded-sm border border-input bg-card px-4 py-3 text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15";
@@ -94,13 +128,79 @@ function ProtocoloPage() {
   const [aceite, setAceite] = useState(false);
 
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  // O token do Turnstile vale UMA vez: toda falha de envio precisa pedir outro,
+  // senão a retentativa cai em "captcha inválido" e o botão trava de vez.
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
   const [armadilha, setArmadilha] = useState("");
   const abertoEm = useRef(Date.now());
+
+  // Quem decide se a página está ativa é o SERVIDOR (ele conhece as chaves do
+  // Trello e do captcha). O cliente só reflete — antes ele adivinhava pela
+  // chave pública e podia divergir.
+  const modo = useQuery({
+    queryKey: ["protocolo", "modo"],
+    queryFn: () => obterModoProtocolo(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const modoDemonstracao = modo.data === "demonstracao";
+  const modoCarregando = modo.isPending;
 
   const [etapa, setEtapa] = useState<Etapa>("formulario");
   const [progresso, setProgresso] = useState({ atual: 0, total: 0 });
   const [conclusao, setConclusao] = useState<Conclusao | null>(null);
   const [erroEnvio, setErroEnvio] = useState<string | null>(null);
+
+  // Restaura o rascunho uma única vez, ao abrir a página.
+  useEffect(() => {
+    const salvo = lerRascunho();
+    if (!salvo?.ato) return;
+    setAto(salvo.ato);
+    setPasso(salvo.passo ?? 1);
+    setRespostas(salvo.respostas ?? {});
+    setEmMaos(new Set(salvo.emMaos ?? []));
+    setApresentanteNome(salvo.apresentanteNome ?? "");
+    setApresentanteTelefone(salvo.apresentanteTelefone ?? "");
+    setParteNome(salvo.parteNome ?? "");
+    setParteTelefone(salvo.parteTelefone ?? "");
+    setEscrevente(salvo.escrevente ?? "");
+    setUrgente(salvo.urgente ?? false);
+    setObservacoes(salvo.observacoes ?? "");
+  }, []);
+
+  // Guarda o rascunho a cada mudança (sem os arquivos e sem o aceite LGPD).
+  useEffect(() => {
+    if (!ato) return;
+    try {
+      const rascunho: Rascunho = {
+        passo,
+        ato,
+        respostas,
+        emMaos: [...emMaos],
+        apresentanteNome,
+        apresentanteTelefone,
+        parteNome,
+        parteTelefone,
+        escrevente,
+        urgente,
+        observacoes,
+      };
+      sessionStorage.setItem(CHAVE_RASCUNHO, JSON.stringify(rascunho));
+    } catch {
+      // Navegador sem armazenamento (aba anônima, cota cheia): seguir sem rascunho.
+    }
+  }, [
+    passo,
+    ato,
+    respostas,
+    emMaos,
+    apresentanteNome,
+    apresentanteTelefone,
+    parteNome,
+    parteTelefone,
+    escrevente,
+    urgente,
+    observacoes,
+  ]);
 
   const perguntas = useMemo(() => (ato ? perguntasVisiveis(ato, respostas) : []), [ato, respostas]);
   const itens = useMemo(() => (ato ? itensDossie(ato, respostas) : []), [ato, respostas]);
@@ -110,10 +210,19 @@ function ProtocoloPage() {
     apresentanteTelefone.trim().length >= 8 &&
     parteNome.trim().length >= 3;
 
-  // Sem chave do captcha a página fica em demonstração — o servidor recusa
-  // qualquer envio real nessa situação, então avisamos desde já.
-  const modoDemonstracao = !TURNSTILE_SITE_KEY;
-  const podeEnviar = dadosPreenchidos && aceite && (modoDemonstracao || Boolean(captchaToken));
+  const podeEnviar =
+    dadosPreenchidos && aceite && !modoCarregando && (modoDemonstracao || Boolean(captchaToken));
+
+  // Explica por que o botão está desabilitado — antes o cliente só via cinza.
+  const motivoBloqueio = !dadosPreenchidos
+    ? "Volte ao passo “Seus dados” e preencha nome e telefone."
+    : !aceite
+      ? "Marque a autorização acima para enviar."
+      : modoCarregando
+        ? "Carregando…"
+        : !modoDemonstracao && !captchaToken
+          ? "Conclua a verificação de segurança acima. Se ela não aparecer, seu navegador pode estar bloqueando a Cloudflare — fale conosco pelo WhatsApp."
+          : null;
 
   function responder(id: string, valor: string | string[] | undefined) {
     setRespostas((atual) => {
@@ -137,14 +246,18 @@ function ProtocoloPage() {
     setErroArquivo(null);
     const aceitos: ArquivoSelecionado[] = [];
 
+    // Um arquivo recusado não pode descartar os outros da mesma seleção:
+    // avaliamos todos e listamos os problemas no fim.
+    const problemas: string[] = [];
     for (const file of Array.from(lista)) {
       const erro = await validarNoNavegador(file, [...arquivos, ...aceitos]);
       if (erro) {
-        setErroArquivo(erro);
-        break;
+        problemas.push(erro);
+        continue;
       }
       aceitos.push({ file, id: `${file.name}-${file.size}-${crypto.randomUUID()}` });
     }
+    if (problemas.length) setErroArquivo(problemas.join(" "));
 
     if (aceitos.length) setArquivos((atual) => [...atual, ...aceitos]);
   }
@@ -169,6 +282,7 @@ function ProtocoloPage() {
           documentosEmMaos: itens.filter((item) => emMaos.has(item)),
           observacoes,
           quantidadeArquivos: arquivos.length,
+          aceiteLgpd: true as const,
           captchaToken: captchaToken ?? "",
           armadilha,
           duracaoMs: Date.now() - abertoEm.current,
@@ -176,6 +290,11 @@ function ProtocoloPage() {
       });
 
       if (resultado.status === "demonstracao") {
+        try {
+          sessionStorage.removeItem(CHAVE_RASCUNHO);
+        } catch {
+          // sem armazenamento: nada a limpar
+        }
         setConclusao({
           codigo: resultado.codigo,
           demonstracao: true,
@@ -195,6 +314,8 @@ function ProtocoloPage() {
           erro: "Não foi possível concluir o envio. Tente novamente em instantes.",
         };
         setErroEnvio(mensagens[resultado.status] ?? mensagens.erro);
+        setCaptchaToken(null);
+        setCaptchaResetKey((k) => k + 1);
         setEtapa("formulario");
         return;
       }
@@ -211,7 +332,7 @@ function ProtocoloPage() {
           try {
             const corpo = new FormData();
             corpo.append("token", resultado.uploadToken);
-            corpo.append("indice", String(i));
+            corpo.append("tamanho", String(file.size));
             corpo.append("arquivo", file, file.name);
             const anexo = await anexarDocumento({ data: corpo });
             if (anexo.status === "ok") enviados += 1;
@@ -223,6 +344,11 @@ function ProtocoloPage() {
       }
 
       setProgresso({ atual: arquivos.length, total: arquivos.length });
+      try {
+        sessionStorage.removeItem(CHAVE_RASCUNHO);
+      } catch {
+        // sem armazenamento: nada a limpar
+      }
       setConclusao({
         codigo: resultado.codigo,
         demonstracao: false,
@@ -233,6 +359,8 @@ function ProtocoloPage() {
     } catch (erro) {
       console.error(erro);
       setErroEnvio("Não foi possível concluir o envio. Tente novamente em instantes.");
+      setCaptchaToken(null);
+      setCaptchaResetKey((k) => k + 1);
       setEtapa("formulario");
     }
   }
@@ -253,16 +381,20 @@ function ProtocoloPage() {
 
       <section className="container-tight grid gap-7 py-12 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
         <div className="min-w-0">
-          <Passos atual={passo} habilitado={Boolean(ato)} onIr={setPasso} />
+          <Passos atual={passo} habilitado={Boolean(ato) && !enviando} onIr={setPasso} />
 
           <div className="mt-6 space-y-6">
             {passo === 0 && (
               <PassoAto
                 ato={ato}
                 onEscolher={(a) => {
-                  setAto(a);
-                  setRespostas({});
-                  setEmMaos(new Set());
+                  // Só zera a triagem quando o ato REALMENTE muda: reclicar no
+                  // mesmo ato apagaria silenciosamente tudo o que foi respondido.
+                  if (a !== ato) {
+                    setAto(a);
+                    setRespostas({});
+                    setEmMaos(new Set());
+                  }
                   setPasso(1);
                 }}
               />
@@ -301,6 +433,20 @@ function ProtocoloPage() {
               </section>
             )}
 
+            {passo === 3 && ato && (
+              <div className="lg:hidden">
+                <DossieRail
+                  titulo=""
+                  itens={itens}
+                  emMaos={emMaos}
+                  onAlternar={alternarDocumento}
+                />
+                <p className="mt-2 mb-6 text-xs text-muted-foreground">
+                  Marque o que você já tem em mãos. Não precisa ter tudo para enviar.
+                </p>
+              </div>
+            )}
+
             {passo === 3 && (
               <PassoDocumentos
                 arquivos={arquivos}
@@ -323,6 +469,7 @@ function ProtocoloPage() {
                 setAceite={setAceite}
                 modoDemonstracao={modoDemonstracao}
                 onToken={setCaptchaToken}
+                captchaResetKey={captchaResetKey}
                 armadilha={armadilha}
                 setArmadilha={setArmadilha}
                 erroEnvio={erroEnvio}
@@ -334,8 +481,12 @@ function ProtocoloPage() {
           <Navegacao
             passo={passo}
             total={PASSOS.length}
-            habilitado={Boolean(ato)}
+            habilitado={Boolean(ato) && (passo !== 1 || dadosPreenchidos)}
+            avisoPasso={
+              passo === 1 && !dadosPreenchidos ? "Preencha nome e telefone para continuar." : null
+            }
             podeEnviar={podeEnviar}
+            motivoBloqueio={motivoBloqueio}
             enviando={enviando}
             progresso={progresso}
             onVoltar={() => setPasso((p) => Math.max(0, p - 1))}
@@ -344,7 +495,7 @@ function ProtocoloPage() {
           />
         </div>
 
-        <aside className="lg:sticky lg:top-28">
+        <aside className="hidden lg:sticky lg:top-28 lg:block">
           <DossieRail
             titulo={ato ? tituloCartao(ato, "…", parteNome).replace(" - […]", "") : ""}
             itens={itens}
@@ -587,7 +738,10 @@ function PassoDocumentos(props: {
         />
 
         {props.erroArquivo && (
-          <p className="mt-3 flex items-start gap-2 rounded-sm border border-primary/30 bg-accent/60 px-3 py-2 text-sm text-secondary">
+          <p
+            role="alert"
+            className="mt-3 flex items-start gap-2 rounded-sm border border-primary/30 bg-accent/60 px-3 py-2 text-sm text-secondary"
+          >
             <AlertTriangle size={15} className="mt-0.5 flex-none text-primary" aria-hidden />
             {props.erroArquivo}
           </p>
@@ -622,6 +776,7 @@ function PassoRevisao(props: {
   setAceite: (v: boolean) => void;
   modoDemonstracao: boolean;
   onToken: (t: string | null) => void;
+  captchaResetKey: number;
   armadilha: string;
   setArmadilha: (v: string) => void;
   erroEnvio: string | null;
@@ -699,7 +854,7 @@ function PassoRevisao(props: {
 
       {!props.modoDemonstracao && (
         <div className="mt-5">
-          <Turnstile onToken={props.onToken} />
+          <Turnstile onToken={props.onToken} resetKey={props.captchaResetKey} />
         </div>
       )}
 
@@ -720,7 +875,10 @@ function PassoRevisao(props: {
       )}
 
       {props.erroEnvio && (
-        <p className="mt-4 flex items-start gap-2 rounded-sm border border-primary/30 bg-accent/60 px-3 py-2.5 text-sm text-secondary">
+        <p
+          role="alert"
+          className="mt-4 flex items-start gap-2 rounded-sm border border-primary/30 bg-accent/60 px-3 py-2.5 text-sm text-secondary"
+        >
           <AlertTriangle size={15} className="mt-0.5 flex-none text-primary" aria-hidden />
           {props.erroEnvio}
         </p>
@@ -733,6 +891,8 @@ function Navegacao(props: {
   passo: number;
   total: number;
   habilitado: boolean;
+  avisoPasso?: string | null;
+  motivoBloqueio?: string | null;
   podeEnviar: boolean;
   enviando: boolean;
   progresso: { atual: number; total: number };
@@ -743,51 +903,63 @@ function Navegacao(props: {
   const ultimo = props.passo === props.total - 1;
 
   return (
-    <div className="mt-6 flex flex-wrap items-center gap-3">
-      {props.passo > 0 && (
-        <button
-          type="button"
-          onClick={props.onVoltar}
-          disabled={props.enviando}
-          className="inline-flex items-center gap-2 rounded-sm border border-input bg-card px-4 py-2.5 text-sm font-medium transition-colors hover:border-primary disabled:opacity-50"
-        >
-          <ArrowLeft size={15} aria-hidden />
-          Voltar
-        </button>
+    <div className="mt-6">
+      {props.avisoPasso && (
+        <p role="alert" className="mb-3 text-[13px] text-primary">
+          {props.avisoPasso}
+        </p>
       )}
+      {ultimo && props.motivoBloqueio && !props.enviando && (
+        <p role="alert" className="mb-3 text-[13px] text-primary">
+          {props.motivoBloqueio}
+        </p>
+      )}
+      <div className="flex flex-wrap items-center gap-3">
+        {props.passo > 0 && (
+          <button
+            type="button"
+            onClick={props.onVoltar}
+            disabled={props.enviando}
+            className="inline-flex items-center gap-2 rounded-sm border border-input bg-card px-4 py-2.5 text-sm font-medium transition-colors hover:border-primary disabled:opacity-50"
+          >
+            <ArrowLeft size={15} aria-hidden />
+            Voltar
+          </button>
+        )}
 
-      {!ultimo ? (
-        <button
-          type="button"
-          onClick={props.onAvancar}
-          disabled={!props.habilitado}
-          className="inline-flex items-center gap-2 rounded-sm bg-primary px-5 py-2.5 text-sm font-semibold uppercase tracking-wider text-primary-foreground transition-colors hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Continuar
-          <ArrowRight size={15} aria-hidden />
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={props.onEnviar}
-          disabled={!props.podeEnviar || props.enviando}
-          className="inline-flex items-center gap-2 rounded-sm bg-primary px-5 py-2.5 text-sm font-semibold uppercase tracking-wider text-primary-foreground transition-colors hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {props.enviando ? (
-            <>
-              <Loader2 size={15} className="animate-spin" aria-hidden />
-              {props.progresso.total > 0
-                ? `Enviando ${props.progresso.atual + 1} de ${props.progresso.total}…`
-                : "Enviando…"}
-            </>
-          ) : (
-            <>
-              <Send size={15} aria-hidden />
-              Enviar protocolo
-            </>
-          )}
-        </button>
-      )}
+        {!ultimo ? (
+          <button
+            type="button"
+            onClick={props.onAvancar}
+            disabled={!props.habilitado}
+            className="inline-flex items-center gap-2 rounded-sm bg-primary px-5 py-2.5 text-sm font-semibold uppercase tracking-wider text-primary-foreground transition-colors hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Continuar
+            <ArrowRight size={15} aria-hidden />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={props.onEnviar}
+            disabled={!props.podeEnviar || props.enviando}
+            className="inline-flex items-center gap-2 rounded-sm bg-primary px-5 py-2.5 text-sm font-semibold uppercase tracking-wider text-primary-foreground transition-colors hover:bg-primary-soft disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {props.enviando ? (
+              <>
+                <Loader2 size={15} className="animate-spin" aria-hidden />
+                {props.progresso.total > 0
+                  ? `Enviando ${props.progresso.atual + 1} de ${props.progresso.total}…`
+                  : "Enviando…"}
+              </>
+            ) : (
+              <>
+                <Send size={15} aria-hidden />
+                Enviar protocolo
+              </>
+            )}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -810,8 +982,9 @@ function TelaConclusao({ conclusao }: { conclusao: Conclusao }) {
           </p>
         ) : (
           <p className="mt-3 text-sm text-muted-foreground">
-            Recebemos sua solicitação. Guarde o código abaixo: é com ele que você acompanha o
-            andamento até o cartório confirmar o número oficial do protocolo.
+            Recebemos sua solicitação. Guarde o código abaixo: é por ele que o cartório identifica
+            seu envio e é ele que você informa ao consultar o andamento. Assim que uma escrevente
+            conferir os documentos, você recebe o número oficial do protocolo.
           </p>
         )}
 

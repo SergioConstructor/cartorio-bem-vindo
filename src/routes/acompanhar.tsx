@@ -39,8 +39,8 @@ const formSchema = z.object({
     .string()
     .trim()
     .regex(
-      /^(\d{1,10}|[Ss]-?[0-9A-Za-z]{6})$/u,
-      "Informe o número do protocolo (ex.: 0988) ou o código do site (ex.: S-XK4M2P).",
+      /^(\d{1,10}|[Ss]-?[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{6})$/u,
+      "Informe o número do protocolo (ex.: 0988) ou o código do site (ex.: S-XK4M2P). O código não usa as letras I, L, O nem U.",
     ),
 });
 type FormValues = z.infer<typeof formSchema>;
