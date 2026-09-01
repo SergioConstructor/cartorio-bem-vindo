@@ -38,7 +38,10 @@ const formSchema = z.object({
   protocolo: z
     .string()
     .trim()
-    .regex(/^\d{1,10}$/u, "Informe apenas os números do protocolo."),
+    .regex(
+      /^(\d{1,10}|[Ss]-?[0-9A-Za-z]{6})$/u,
+      "Informe o número do protocolo (ex.: 0988) ou o código do site (ex.: S-XK4M2P).",
+    ),
 });
 type FormValues = z.infer<typeof formSchema>;
 
@@ -85,14 +88,13 @@ function AcompanharPage() {
           <form onSubmit={handleSubmit(onSubmit)} className="grid gap-3">
             <label className="grid gap-1.5">
               <span className="text-xs font-semibold uppercase tracking-wider text-secondary/70">
-                Número de protocolo
+                Número de protocolo ou código do site
               </span>
               <div className="flex flex-col gap-3 sm:flex-row">
                 <input
                   {...register("protocolo")}
-                  placeholder="Ex.: 0988"
+                  placeholder="Ex.: 0988 ou S-XK4M2P"
                   autoComplete="off"
-                  inputMode="numeric"
                   className={inputClass}
                   aria-invalid={errors.protocolo ? "true" : "false"}
                 />
@@ -155,11 +157,18 @@ function ResultView({ result, protocolo }: { result: TrackingResult; protocolo: 
           demo
         />
       );
+    case "pre_protocolo":
+      return (
+        <NoticeCard
+          title="Recebemos sua solicitação pelo site"
+          description="Ela está na fila de conferência do cartório. Assim que uma escrevente conferir os documentos, você recebe o número oficial do protocolo — e passa a acompanhar o andamento por ele."
+        />
+      );
     case "nao_encontrado":
       return (
         <NoticeCard
           title="Não encontramos esse protocolo"
-          description="Confira o número informado. Se estiver correto, o processo pode ainda não ter sido registrado ou já ter sido concluído. Fale com o cartório para confirmar."
+          description="Confira o número ou o código informado. Se estiver correto, o processo pode ainda não ter sido registrado ou já ter sido concluído. Fale com o cartório para confirmar."
         />
       );
     case "ambiguo":
