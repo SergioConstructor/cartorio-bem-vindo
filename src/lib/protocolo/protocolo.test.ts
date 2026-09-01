@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { MAX_BYTES_ARQUIVO, pareceRealmentePdf, sanearNomeArquivo, validarPdf } from "./arquivo";
+import {
+  detectarTipo,
+  MAX_BYTES_ARQUIVO,
+  sanearNomeArquivo,
+  tipoAceito,
+  validarArquivo,
+} from "./arquivo";
 import {
   CODIGO_RE,
   gerarCodigo,
@@ -127,31 +133,57 @@ describe("nome do cartão", () => {
   });
 });
 
-describe("validação de PDF", () => {
-  it("aceita PDF de verdade", () => {
-    expect(validarPdf(bytesPdf())).toEqual({ ok: true });
+describe("validação de arquivo", () => {
+  const bytesJpg = () => new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]);
+  const bytesPng = () =>
+    new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00]);
+
+  it("aceita PDF, JPG e PNG de verdade", () => {
+    expect(validarArquivo(bytesPdf())).toEqual({
+      ok: true,
+      tipo: { extensao: "pdf", mime: "application/pdf" },
+    });
+    expect(validarArquivo(bytesJpg())).toEqual({
+      ok: true,
+      tipo: { extensao: "jpg", mime: "image/jpeg" },
+    });
+    expect(validarArquivo(bytesPng())).toEqual({
+      ok: true,
+      tipo: { extensao: "png", mime: "image/png" },
+    });
   });
 
   it("recusa executável renomeado para .pdf", () => {
     const exe = new Uint8Array([0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00]); // "MZ" — PE do Windows
-    expect(pareceRealmentePdf(exe)).toBe(false);
-    expect(validarPdf(exe)).toEqual({ ok: false, motivo: "Só aceitamos arquivos PDF." });
+    expect(tipoAceito(exe)).toBe(false);
+    expect(validarArquivo(exe)).toEqual({
+      ok: false,
+      motivo: "Aceitamos apenas PDF, JPG ou PNG.",
+    });
+  });
+
+  it("recusa outros formatos que não estão na lista", () => {
+    // GIF e ZIP são arquivos legítimos, mas fora do que o cartório aceita.
+    expect(detectarTipo(new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61]))).toBeNull();
+    expect(detectarTipo(new Uint8Array([0x50, 0x4b, 0x03, 0x04]))).toBeNull();
   });
 
   it("recusa arquivo vazio e arquivo grande demais", () => {
-    expect(validarPdf(new Uint8Array(0)).ok).toBe(false);
+    expect(validarArquivo(new Uint8Array(0)).ok).toBe(false);
     const grande = new Uint8Array(MAX_BYTES_ARQUIVO + 1);
     grande.set([0x25, 0x50, 0x44, 0x46, 0x2d]);
-    expect(validarPdf(grande).ok).toBe(false);
+    expect(validarArquivo(grande).ok).toBe(false);
   });
 
   it("recusa quando o tamanho declarado não bate com o recebido", () => {
-    expect(validarPdf(bytesPdf(), 999_999).ok).toBe(false);
-    expect(validarPdf(bytesPdf(), bytesPdf().length).ok).toBe(true);
+    expect(validarArquivo(bytesPdf(), 999_999).ok).toBe(false);
+    expect(validarArquivo(bytesPdf(), bytesPdf().length).ok).toBe(true);
   });
 
   it("recusa arquivo curto demais para ter assinatura", () => {
-    expect(pareceRealmentePdf(new Uint8Array([0x25, 0x50]))).toBe(false);
+    expect(tipoAceito(new Uint8Array([0x25, 0x50]))).toBe(false);
+    // Prefixo de PNG truncado não pode passar como PNG.
+    expect(tipoAceito(new Uint8Array([0x89, 0x50, 0x4e]))).toBe(false);
   });
 });
 
@@ -169,6 +201,13 @@ describe("saneamento do nome do arquivo", () => {
   it("gera nome quando não sobra nada de útil", () => {
     expect(sanearNomeArquivo("...", 0)).toBe("documento-1.pdf");
     expect(sanearNomeArquivo("🙂🙂.pdf", 2)).toBe("documento-3.pdf");
+    expect(sanearNomeArquivo("🙂.jpg", 0, "jpg")).toBe("documento-1.jpg");
+  });
+
+  it("usa a extensão do formato detectado, não a declarada", () => {
+    // Cliente manda "rg.pdf" mas o conteúdo é uma foto: o anexo vira rg.jpg.
+    expect(sanearNomeArquivo("rg.pdf", 0, "jpg")).toBe("rg.jpg");
+    expect(sanearNomeArquivo("certidao.JPEG", 0, "png")).toBe("certidao.png");
   });
 
   it("preserva acentos e limita o tamanho", () => {

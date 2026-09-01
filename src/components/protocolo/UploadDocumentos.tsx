@@ -5,12 +5,12 @@ import {
   MAX_ARQUIVOS,
   MAX_BYTES_ARQUIVO,
   MAX_BYTES_TOTAL,
-  pareceRealmentePdf,
+  tipoAceito,
 } from "@/lib/protocolo/arquivo";
 
-// Seleção dos PDFs. A conferência definitiva é do servidor — aqui validamos
-// só para dar erro imediato e não fazer o cliente esperar um envio que já
-// sabemos que será recusado.
+// Seleção dos documentos (PDF ou foto). A conferência definitiva é do servidor
+// — aqui validamos só para dar erro imediato e não fazer o cliente esperar um
+// envio que já sabemos que será recusado.
 
 export type ArquivoSelecionado = { file: File; id: string };
 
@@ -33,9 +33,10 @@ export async function validarNoNavegador(
   if (total > MAX_BYTES_TOTAL) {
     return "O total de arquivos passou de 20 MB.";
   }
-  const inicio = new Uint8Array(await file.slice(0, 5).arrayBuffer());
-  if (!pareceRealmentePdf(inicio)) {
-    return `"${file.name}" não é um PDF.`;
+  // 8 bytes cobrem a maior assinatura aceita (PNG).
+  const inicio = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+  if (!tipoAceito(inicio)) {
+    return `"${file.name}" não é PDF, JPG nem PNG.`;
   }
   return null;
 }
@@ -58,7 +59,7 @@ export function UploadDocumentos({
       <input
         ref={input}
         type="file"
-        accept="application/pdf,.pdf"
+        accept="application/pdf,image/jpeg,image/png,.pdf,.jpg,.jpeg,.png"
         multiple
         className="sr-only"
         disabled={desabilitado}

@@ -25,7 +25,7 @@ import {
   MAX_ARQUIVOS,
   MAX_BYTES_ARQUIVO,
   sanearNomeArquivo,
-  validarPdf,
+  validarArquivo,
 } from "../protocolo/arquivo";
 import { ATO_NOME, PAPEIS, type AtoId } from "../../content/protocolo/atos";
 import { perguntasDoAto } from "../../content/protocolo/triagem";
@@ -39,7 +39,7 @@ import { perguntasDoAto } from "../../content/protocolo/triagem";
 //   2. Cloudflare Turnstile — obrigatório, e ANTES de consumir qualquer cota,
 //      para que um robô sem captcha não consiga esgotar o teto do dia
 //   3. limite por IP e teto diário global
-//   4. PDF conferido por assinatura de arquivo, não por extensão
+//   4. formato conferido por assinatura de arquivo, não por extensão
 //   5. token HMAC de curta duração no lugar do id do cartão, e o número de
 //      anexos conferido no PRÓPRIO cartão (fonte de verdade), não no token
 //
@@ -493,13 +493,15 @@ export const anexarDocumento = createServerFn({ method: "POST" })
     }
 
     const bytes = new Uint8Array(await arquivo.arrayBuffer());
-    const validacao = validarPdf(
+    const validacao = validarArquivo(
       bytes,
       Number.isFinite(tamanhoDeclarado) ? tamanhoDeclarado : undefined,
     );
     if (!validacao.ok) return { status: "recusado", motivo: validacao.motivo };
 
-    const nome = sanearNomeArquivo(arquivo.name, 0);
+    // Nome e Content-Type saem do formato REALMENTE detectado, não do que o
+    // navegador declarou.
+    const nome = sanearNomeArquivo(arquivo.name, 0, validacao.tipo.extensao);
 
     try {
       // Quantos anexos o cartão JÁ tem é a única fonte de verdade confiável: o
@@ -512,7 +514,7 @@ export const anexarDocumento = createServerFn({ method: "POST" })
         return { status: "limite" };
       }
 
-      await trelloAnexar(conteudo.c, { nome, bytes, tipo: "application/pdf" });
+      await trelloAnexar(conteudo.c, { nome, bytes, tipo: validacao.tipo.mime });
       return { status: "ok", nome };
     } catch (erro) {
       console.error("Erro ao anexar documento:", erro);
