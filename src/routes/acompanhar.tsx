@@ -4,7 +4,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Check, Clock, Loader2, MessageCircle, Search, ShieldCheck } from "lucide-react";
+import { Check, Clock, Loader2, MessageCircle, Search, ShieldCheck, UserRound } from "lucide-react";
 import { PageHero } from "@/components/site/PageHero";
 import { SectionHeading } from "@/components/site/SectionHeading";
 import { Progress } from "@/components/ui/progress";
@@ -145,6 +145,7 @@ function ResultView({ result, protocolo }: { result: TrackingResult; protocolo: 
           currentStageIndex={result.currentStageIndex}
           updatedAt={result.updatedAt}
           protocolo={protocolo}
+          escrevente={result.escrevente}
         />
       );
     case "config_pendente":
@@ -154,6 +155,7 @@ function ResultView({ result, protocolo }: { result: TrackingResult; protocolo: 
           currentStageIndex={demoStageIndex}
           updatedAt={null}
           protocolo={protocolo}
+          escrevente="Lara"
           demo
         />
       );
@@ -189,12 +191,15 @@ function Timeline({
   currentStageIndex,
   updatedAt,
   protocolo,
+  escrevente = null,
   demo = false,
 }: {
   stages: { label: string }[];
   currentStageIndex: number;
   updatedAt: string | null;
   protocolo: string;
+  /** Nome da escrevente responsável, quando o processo está com uma delas. */
+  escrevente?: string | null;
   demo?: boolean;
 }) {
   const total = stages.length;
@@ -218,6 +223,12 @@ function Timeline({
             Protocolo {protocolo}
           </div>
           <h2 className="mt-1 font-display text-2xl text-secondary">{stages[current].label}</h2>
+          {escrevente && (
+            <p className="mt-1.5 flex items-center gap-1.5 text-sm text-secondary/80">
+              <UserRound size={14} className="text-primary" aria-hidden />
+              Com a escrevente <strong className="font-semibold">{escrevente}</strong>
+            </p>
+          )}
         </div>
         <span className="text-sm text-muted-foreground">
           Etapa {current + 1} de {total}

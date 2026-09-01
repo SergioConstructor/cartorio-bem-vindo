@@ -58,3 +58,40 @@ export function parseStagesConfig(raw: string | undefined): Stage[] | null {
 
 /** Etapa exibida no modo demonstração (sem credenciais do Trello). */
 export const demoStageIndex = 5;
+
+// Quando o cartão está no quadro de uma escrevente ("02. ESCREVENTE LARA"),
+// mostramos o nome dela no acompanhamento: assim o cliente sabe por quem
+// perguntar no balcão ou no WhatsApp, em vez de "falar com o cartório".
+
+/** Grafia oficial dos nomes — o quadro do Trello vem sem acento e em CAIXA ALTA. */
+const ESCREVENTES = ["Josilene", "Camily", "Romênia", "Lara", "Jonas"] as const;
+
+function semAcento(valor: string): string {
+  return valor.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().trim();
+}
+
+function capitalizar(nome: string): string {
+  return nome
+    .toLocaleLowerCase("pt-BR")
+    .replace(
+      /(^|\s)(\p{L})/gu,
+      (_, espaco: string, letra: string) => espaco + letra.toLocaleUpperCase("pt-BR"),
+    );
+}
+
+/**
+ * Extrai o nome da escrevente do nome do quadro; null se o quadro não for de
+ * uma escrevente (ex.: "00. Protocolo/Cadastro").
+ *
+ * Prefere a grafia da lista acima — o quadro "02. ESCREVENTE ROMENIA" vira
+ * "Romênia", com o acento certo. Um nome novo, ainda não listado, aparece
+ * capitalizado ("SUZANA" → "Suzana"), então criar um quadro não exige deploy.
+ */
+export function escreventeDoQuadro(nomeQuadro: string): string | null {
+  const match = /escrevente\s+(.+)$/i.exec(nomeQuadro);
+  const bruto = match?.[1].trim();
+  if (!bruto) return null;
+
+  const conhecida = ESCREVENTES.find((nome) => semAcento(nome) === semAcento(bruto));
+  return conhecida ?? capitalizar(bruto);
+}
