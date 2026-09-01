@@ -311,6 +311,8 @@ function ProtocoloPage() {
           limite: "Recebemos muitos envios agora há pouco. Aguarde alguns minutos e tente de novo.",
           config_pendente:
             "O envio online ainda não está liberado. Fale conosco pelo WhatsApp que protocolamos para você.",
+          sem_permissao:
+            "O envio online está temporariamente indisponível. Já avisamos o cartório — fale conosco pelo WhatsApp que protocolamos para você agora.",
           erro: "Não foi possível concluir o envio. Tente novamente em instantes.",
         };
         setErroEnvio(mensagens[resultado.status] ?? mensagens.erro);

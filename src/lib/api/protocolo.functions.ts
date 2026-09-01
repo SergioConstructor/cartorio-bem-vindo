@@ -8,7 +8,7 @@ import {
   QUADRO_FLUXO_RE,
   trelloAnexar,
   trelloGet,
-  trelloWrite,
+  TrelloError,
   trelloWriteJson,
 } from "../trello.server";
 import { verificarTurnstile } from "../turnstile.server";
@@ -59,6 +59,9 @@ export type ResultadoEnvio =
   | { status: "captcha" }
   | { status: "limite" }
   | { status: "config_pendente" }
+  // Token do Trello sem permissão de escrita (ou expirado): retentar não
+  // adianta, é configuração. Merece mensagem própria, não "tente de novo".
+  | { status: "sem_permissao" }
   | { status: "erro" };
 
 export type ResultadoAnexo =
@@ -446,13 +449,20 @@ export const enviarProtocolo = createServerFn({ method: "POST" })
       const bloco = blocoDoEnvio(dados, codigo, itens);
       const desc = (descModelo ? `${descModelo}\n\n${bloco}` : bloco).slice(0, MAX_CARACTERES_DESC);
 
-      const cartao = await trelloWrite<{ id: string }>("/cards", {
-        idList: estrutura.listaEntradaId,
-        name: tituloCartao(dados.ato, codigo, dados.parteNome),
-        desc,
-        pos: "top",
-        ...(modelo ? { idCardSource: modelo.id, keepFromSource: "checklists,labels" } : {}),
-      });
+      // Corpo JSON, não query string: a descrição carrega o formulário do
+      // modelo e passa de 3 KB — na URL isso se aproxima do limite de tamanho
+      // da linha de requisição.
+      const cartao = await trelloWriteJson<{ id: string }>(
+        "/cards",
+        {
+          idList: estrutura.listaEntradaId,
+          name: tituloCartao(dados.ato, codigo, dados.parteNome),
+          desc,
+          pos: "top",
+          ...(modelo ? { idCardSource: modelo.id, keepFromSource: "checklists,labels" } : {}),
+        },
+        "POST",
+      );
 
       await preencherCampo(cartao.id, estrutura.campos, "Apresentante", dados.apresentanteNome);
       await preencherCampo(
@@ -477,6 +487,13 @@ export const enviarProtocolo = createServerFn({ method: "POST" })
       return { status: "ok", codigo, uploadToken, maxArquivos: data.quantidadeArquivos };
     } catch (erro) {
       console.error("Erro ao criar a solicitação de protocolo:", erro);
+      if (erro instanceof TrelloError && erro.semPermissao) {
+        console.error(
+          "O token do Trello não tem permissão de ESCRITA. Gere outro com " +
+            "scope=read,write e atualize TRELLO_API_TOKEN na Vercel.",
+        );
+        return { status: "sem_permissao" };
+      }
       return { status: "erro" };
     }
   });
