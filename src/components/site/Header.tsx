@@ -3,10 +3,13 @@ import { Link } from "@tanstack/react-router";
 import { Clock, MapPin, Menu, MessageCircle, Phone, X } from "lucide-react";
 import { Logo } from "./Logo";
 
+// "destaque" marca o item que ganha a pílula dourada — o serviço novo que
+// queremos que o visitante encontre de primeira, ao lado de "Acompanhar".
 const nav = [
   { to: "/", label: "Início" },
   { to: "/servicos", label: "Serviços" },
   { to: "/acompanhar", label: "Acompanhar" },
+  { to: "/protocolo", label: "Iniciar protocolo", destaque: true },
   { to: "/sobre", label: "Sobre" },
   { to: "/blog", label: "Blog" },
   { to: "/contato", label: "Contato" },
@@ -15,6 +18,11 @@ const nav = [
 const linkBase =
   "relative py-1 text-sm font-medium tracking-wide text-secondary/80 transition-colors hover:text-primary " +
   "after:absolute after:-bottom-0.5 after:left-0 after:h-0.5 after:w-full after:origin-left after:scale-x-0 after:bg-gold after:transition-transform after:duration-300 hover:after:scale-x-100";
+
+// Dourado do selo sobre texto marinho: o acento mais forte da identidade, e
+// distinto do vinho do botão "Fale conosco" para não competirem.
+const linkDestaque =
+  "rounded-sm bg-gold px-3 py-1.5 text-sm font-semibold tracking-wide text-secondary shadow-sm transition-colors hover:bg-gold/85";
 
 export function Header() {
   const [open, setOpen] = useState(false);
@@ -50,17 +58,28 @@ export function Header() {
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex" aria-label="Navegação principal">
-          {nav.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              className={linkBase}
-              activeProps={{ className: "text-primary after:scale-x-100" }}
-              activeOptions={{ exact: item.to === "/" }}
-            >
-              {item.label}
-            </Link>
-          ))}
+          {nav.map((item) =>
+            "destaque" in item ? (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={linkDestaque}
+                activeProps={{ className: "ring-2 ring-secondary/25" }}
+              >
+                {item.label}
+              </Link>
+            ) : (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={linkBase}
+                activeProps={{ className: "text-primary after:scale-x-100" }}
+                activeOptions={{ exact: item.to === "/" }}
+              >
+                {item.label}
+              </Link>
+            ),
+          )}
           <a
             href="https://wa.me/5579999760702"
             target="_blank"
@@ -90,18 +109,29 @@ export function Header() {
           className="animate-in fade-in slide-in-from-top-2 border-t border-border/70 bg-background duration-200 md:hidden"
         >
           <nav className="container-tight flex flex-col py-4" aria-label="Navegação principal">
-            {nav.map((item) => (
-              <Link
-                key={item.to}
-                to={item.to}
-                onClick={() => setOpen(false)}
-                className="border-b border-border/40 py-3 text-sm font-medium text-secondary/80"
-                activeProps={{ className: "text-primary" }}
-                activeOptions={{ exact: item.to === "/" }}
-              >
-                {item.label}
-              </Link>
-            ))}
+            {nav.map((item) =>
+              "destaque" in item ? (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={() => setOpen(false)}
+                  className="my-2 rounded-sm bg-gold px-3 py-3 text-center text-sm font-semibold text-secondary"
+                >
+                  {item.label}
+                </Link>
+              ) : (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={() => setOpen(false)}
+                  className="border-b border-border/40 py-3 text-sm font-medium text-secondary/80"
+                  activeProps={{ className: "text-primary" }}
+                  activeOptions={{ exact: item.to === "/" }}
+                >
+                  {item.label}
+                </Link>
+              ),
+            )}
             <div className="mt-4 flex flex-col gap-2 text-xs text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
                 <Clock size={13} className="text-gold" aria-hidden />

@@ -2,7 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { getServerConfig } from "../config.server";
+import { normalizarNome, QUADRO_FLUXO_RE, trelloGet } from "../trello.server";
 import { defaultStages, parseStagesConfig, type Stage } from "../../content/tracking";
+import { normalizarCodigo } from "../protocolo/dossie";
 
 // Consulta o andamento de uma escritura pelo número de protocolo.
 //
@@ -27,6 +29,9 @@ export type TrackingResult =
       stages: { label: string }[];
       updatedAt: string | null;
     }
+  // Solicitação feita pelo site, ainda na fila de conferência do cartório:
+  // não é uma etapa do fluxo oficial, então tem estado próprio.
+  | { status: "pre_protocolo"; updatedAt: string | null }
   | { status: "nao_encontrado" }
   | { status: "ambiguo" }
   | { status: "config_pendente" }
@@ -39,12 +44,6 @@ type TrelloCard = {
   list?: { id: string; name: string } | null;
   board?: { id: string; name: string } | null;
 };
-
-const TRELLO_BASE = "https://api.trello.com/1";
-const FETCH_TIMEOUT_MS = 8000;
-
-// Quadros do fluxo público: nome começa com dois dígitos ("00. …", "02. …").
-const FLOW_BOARD_RE = /^\s*\d{2}\b/;
 
 // Proteções da consulta pública (por instância do servidor): limita quantas
 // consultas chegam ao Trello por janela e reaproveita resultados recentes,
@@ -80,41 +79,6 @@ function cacheResult(key: string, result: TrackingResult): void {
   resultCache.set(key, { result, expiresAt: Date.now() + RESULT_TTL_MS });
 }
 
-async function trelloGet<T>(path: string, params: Record<string, string>, attempt = 0): Promise<T> {
-  const { trelloApiKey, trelloApiToken } = getServerConfig();
-  const search = new URLSearchParams({
-    ...params,
-    key: trelloApiKey ?? "",
-    token: trelloApiToken ?? "",
-  });
-  const response = await fetch(`${TRELLO_BASE}${path}?${search.toString()}`, {
-    headers: { Accept: "application/json" },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-  });
-  // Rate limit do Trello: uma única retentativa respeitando o Retry-After.
-  if (response.status === 429 && attempt === 0) {
-    const retryAfter = Number(response.headers.get("retry-after"));
-    const waitMs = Math.min(Number.isFinite(retryAfter) ? retryAfter * 1000 : 1000, 2000);
-    await new Promise((resolve) => setTimeout(resolve, waitMs));
-    return trelloGet(path, params, 1);
-  }
-  if (!response.ok) {
-    throw new Error(`Trello ${path} falhou: ${response.status} ${response.statusText}`);
-  }
-  return (await response.json()) as T;
-}
-
-// Compara nomes de listas com tolerância: ignora acentos, maiúsculas e
-// pontuação ("A Fazer (Minuta)" casa com "a fazer minuta").
-function normalizeListName(name: string): string {
-  return name
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
-}
-
 function getStages(): Stage[] {
   const { trelloStageLists } = getServerConfig();
   return parseStagesConfig(trelloStageLists) ?? defaultStages;
@@ -122,10 +86,8 @@ function getStages(): Stage[] {
 
 /** Índice da etapa correspondente à lista do Trello; -1 se não mapeada. */
 function stageIndexByList(stages: Stage[], listName: string): number {
-  const target = normalizeListName(listName);
-  return stages.findIndex((stage) =>
-    stage.lists.some((name) => normalizeListName(name) === target),
-  );
+  const target = normalizarNome(listName);
+  return stages.findIndex((stage) => stage.lists.some((name) => normalizarNome(name) === target));
 }
 
 function stripLeadingZeros(digits: string): string {
@@ -167,16 +129,66 @@ export function selectMatches(cards: TrelloCard[], target: string): TrelloCard[]
   );
 }
 
+/**
+ * Consulta uma solicitação criada pelo site. O código aparece entre colchetes
+ * no nome do cartão ("Prot. (CV-Urbano) - [S-XK4M2P] JOÃO"). Enquanto o
+ * cartório não confere, o cartão está na lista de entrada e não em uma etapa
+ * do fluxo; assim que a escrevente move e numera, a consulta por número passa
+ * a valer e é ela que mostra a linha do tempo.
+ */
+async function consultarPorCodigo(codigo: string, stages: Stage[]): Promise<TrackingResult> {
+  const { cards = [] } = await trelloGet<{ cards?: TrelloCard[] }>("/search", {
+    query: codigo,
+    modelTypes: "cards",
+    card_fields: "name,dateLastActivity",
+    card_list: "true",
+    card_board: "true",
+    cards_limit: "50",
+    partial: "false",
+  });
+
+  const alvo = `[${codigo}]`;
+  const encontrados = cards.filter((card) => card.name.toUpperCase().includes(alvo));
+  if (encontrados.length === 0) return { status: "nao_encontrado" };
+  if (encontrados.length > 1) return { status: "ambiguo" };
+
+  const card = encontrados[0];
+  const board =
+    card.board ??
+    (await trelloGet<{ id: string; name: string }>(`/cards/${card.id}/board`, { fields: "name" }));
+  if (!QUADRO_FLUXO_RE.test(board.name)) return { status: "nao_encontrado" };
+
+  const list =
+    card.list ??
+    (await trelloGet<{ id: string; name: string }>(`/cards/${card.id}/list`, { fields: "name" }));
+
+  // Se a escrevente já moveu o cartão para uma etapa do fluxo, mostramos a
+  // linha do tempo normalmente, mesmo antes de o número oficial ser atribuído.
+  const stageIndex = stageIndexByList(stages, list.name);
+  if (stageIndex >= 0) {
+    return {
+      status: "ok",
+      currentStageIndex: stageIndex,
+      stages: stages.map(({ label }) => ({ label })),
+      updatedAt: card.dateLastActivity ?? null,
+    };
+  }
+
+  return { status: "pre_protocolo", updatedAt: card.dateLastActivity ?? null };
+}
+
 export const getEscrituraStatus = createServerFn({ method: "POST" })
   .inputValidator(
     z.object({
-      // Só dígitos (o protocolo do cartório é numérico e único), com
-      // tolerância a zeros à esquerda; curto o bastante para não virar
-      // consulta arbitrária.
+      // Número oficial (só dígitos, com tolerância a zeros à esquerda) ou o
+      // código de solicitação que o site emite ("S-XK4M2P").
       protocolo: z
         .string()
         .trim()
-        .regex(/^\d{1,10}$/u, "Informe apenas os números do protocolo."),
+        .regex(
+          /^(\d{1,10}|[Ss]-?[0-9A-HJKMNP-TV-Za-hjkmnp-tv-z]{6})$/u,
+          "Informe o número do protocolo ou o código recebido no site.",
+        ),
     }),
   )
   .handler(async ({ data }): Promise<TrackingResult> => {
@@ -188,13 +200,33 @@ export const getEscrituraStatus = createServerFn({ method: "POST" })
     }
 
     const stages = getStages();
-    const target = stripLeadingZeros(data.protocolo);
+    const codigo = normalizarCodigo(data.protocolo);
+    // Parece código do site mas não passou na normalização (letra fora do
+    // alfabeto, por exemplo): não faz sentido cair na busca numérica e gastar
+    // uma consulta ao Trello com um alvo impossível.
+    if (!codigo && /^[Ss]-?[^0-9]/.test(data.protocolo)) {
+      return { status: "nao_encontrado" };
+    }
+    const target = codigo ?? stripLeadingZeros(data.protocolo);
 
     const cached = cachedResult(target);
     if (cached) return cached;
 
     if (overRateLimit()) {
       return { status: "erro" };
+    }
+
+    // Código de solicitação do site: o cartão ainda não tem número oficial e
+    // vive na lista de entrada, fora do fluxo de etapas.
+    if (codigo) {
+      try {
+        const resultado = await consultarPorCodigo(codigo, stages);
+        cacheResult(target, resultado);
+        return resultado;
+      } catch (erro) {
+        console.error("Erro ao consultar o Trello:", erro);
+        return { status: "erro" };
+      }
     }
 
     // A busca textual do Trello não sabe que "988" e "0988" são o mesmo
@@ -228,7 +260,7 @@ export const getEscrituraStatus = createServerFn({ method: "POST" })
           (await trelloGet<{ id: string; name: string }>(`/cards/${card.id}/board`, {
             fields: "name",
           }));
-        if (!FLOW_BOARD_RE.test(board.name)) continue;
+        if (!QUADRO_FLUXO_RE.test(board.name)) continue;
 
         const list =
           card.list ??

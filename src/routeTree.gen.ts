@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SobreRouteImport } from './routes/sobre'
 import { Route as ServicosRouteImport } from './routes/servicos'
+import { Route as ProtocoloRouteImport } from './routes/protocolo'
 import { Route as ContatoRouteImport } from './routes/contato'
 import { Route as AcompanharRouteImport } from './routes/acompanhar'
 import { Route as IndexRouteImport } from './routes/index'
@@ -25,6 +26,11 @@ const SobreRoute = SobreRouteImport.update({
 const ServicosRoute = ServicosRouteImport.update({
   id: '/servicos',
   path: '/servicos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProtocoloRoute = ProtocoloRouteImport.update({
+  id: '/protocolo',
+  path: '/protocolo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContatoRoute = ContatoRouteImport.update({
@@ -57,6 +63,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/acompanhar': typeof AcompanharRoute
   '/contato': typeof ContatoRoute
+  '/protocolo': typeof ProtocoloRoute
   '/servicos': typeof ServicosRoute
   '/sobre': typeof SobreRoute
   '/blog/$slug': typeof BlogSlugRoute
@@ -66,6 +73,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/acompanhar': typeof AcompanharRoute
   '/contato': typeof ContatoRoute
+  '/protocolo': typeof ProtocoloRoute
   '/servicos': typeof ServicosRoute
   '/sobre': typeof SobreRoute
   '/blog/$slug': typeof BlogSlugRoute
@@ -76,6 +84,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/acompanhar': typeof AcompanharRoute
   '/contato': typeof ContatoRoute
+  '/protocolo': typeof ProtocoloRoute
   '/servicos': typeof ServicosRoute
   '/sobre': typeof SobreRoute
   '/blog/$slug': typeof BlogSlugRoute
@@ -87,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/acompanhar'
     | '/contato'
+    | '/protocolo'
     | '/servicos'
     | '/sobre'
     | '/blog/$slug'
@@ -96,6 +106,7 @@ export interface FileRouteTypes {
     | '/'
     | '/acompanhar'
     | '/contato'
+    | '/protocolo'
     | '/servicos'
     | '/sobre'
     | '/blog/$slug'
@@ -105,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/acompanhar'
     | '/contato'
+    | '/protocolo'
     | '/servicos'
     | '/sobre'
     | '/blog/$slug'
@@ -115,6 +127,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AcompanharRoute: typeof AcompanharRoute
   ContatoRoute: typeof ContatoRoute
+  ProtocoloRoute: typeof ProtocoloRoute
   ServicosRoute: typeof ServicosRoute
   SobreRoute: typeof SobreRoute
   BlogSlugRoute: typeof BlogSlugRoute
@@ -135,6 +148,13 @@ declare module '@tanstack/react-router' {
       path: '/servicos'
       fullPath: '/servicos'
       preLoaderRoute: typeof ServicosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/protocolo': {
+      id: '/protocolo'
+      path: '/protocolo'
+      fullPath: '/protocolo'
+      preLoaderRoute: typeof ProtocoloRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contato': {
@@ -179,6 +199,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AcompanharRoute: AcompanharRoute,
   ContatoRoute: ContatoRoute,
+  ProtocoloRoute: ProtocoloRoute,
   ServicosRoute: ServicosRoute,
   SobreRoute: SobreRoute,
   BlogSlugRoute: BlogSlugRoute,

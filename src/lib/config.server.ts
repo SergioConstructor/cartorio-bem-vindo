@@ -28,5 +28,26 @@ export function getServerConfig() {
     // código — ver formato em src/content/tracking.ts. Se ausente, vale o
     // fluxo padrão do cartório definido lá.
     trelloStageLists: process.env.TRELLO_STAGE_LISTS,
+    // Lista do quadro "00." onde caem os envios do site. Opcional: sem ela vale
+    // o nome padrão definido em protocolo.functions.ts.
+    trelloIntakeList: process.env.TRELLO_INTAKE_LIST,
+    // Cloudflare Turnstile — captcha da página /protocolo. Só a chave secreta
+    // fica aqui; a chave pública do widget é VITE_TURNSTILE_SITE_KEY.
+    turnstileSecretKey: process.env.TURNSTILE_SECRET_KEY,
+    // Assina o token que autoriza anexar arquivos a um cartão recém-criado.
+    // Opcional: sem ela derivamos do token do Trello (também server-only).
+    protocoloUploadSecret: process.env.PROTOCOLO_UPLOAD_SECRET,
   };
+}
+
+/**
+ * Segredo usado para assinar os tokens de upload. Nunca sai do servidor.
+ * Sem PROTOCOLO_UPLOAD_SECRET, deriva do token do Trello — funciona sem
+ * configuração extra, ao custo de invalidar os tokens em voo se o token do
+ * Trello for trocado (janela de 15 minutos, aceitável).
+ */
+export function getUploadSecret(): string | null {
+  const { protocoloUploadSecret, trelloApiToken } = getServerConfig();
+  if (protocoloUploadSecret) return protocoloUploadSecret;
+  return trelloApiToken ? `derivado:${trelloApiToken}` : null;
 }
