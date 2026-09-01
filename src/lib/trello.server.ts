@@ -6,6 +6,24 @@
 
 import { getServerConfig } from "./config.server";
 
+/** Erro de chamada ao Trello que preserva o status HTTP para quem chamou. */
+export class TrelloError extends Error {
+  constructor(
+    readonly status: number,
+    /** Caminho chamado ("/cards", "/members/me/boards"): identifica o passo. */
+    readonly path: string,
+    mensagem: string,
+  ) {
+    super(mensagem);
+    this.name = "TrelloError";
+  }
+
+  /** Token inválido, expirado ou sem permissão de escrita. Retentar não ajuda. */
+  get semPermissao(): boolean {
+    return this.status === 401 || this.status === 403;
+  }
+}
+
 const TRELLO_BASE = "https://api.trello.com/1";
 const FETCH_TIMEOUT_MS = 8000;
 const UPLOAD_TIMEOUT_MS = 25_000;
@@ -35,7 +53,16 @@ async function comRetentativa(
   }
 
   if (!resposta.ok) {
-    throw new Error(`Trello ${descricao} falhou: ${resposta.status} ${resposta.statusText}`);
+    // O corpo do Trello costuma explicar o motivo ("invalid token", "unauthorized
+    // permission requested") — vale muito mais que o status sozinho no log.
+    const detalhe = await resposta.text().catch(() => "");
+    throw new TrelloError(
+      resposta.status,
+      descricao,
+      `Trello ${descricao} falhou: ${resposta.status} ${resposta.statusText}${
+        detalhe ? ` — ${detalhe.slice(0, 300)}` : ""
+      }`,
+    );
   }
   return resposta;
 }
@@ -58,29 +85,10 @@ export async function trelloGet<T>(
   return (await resposta.json()) as T;
 }
 
-/** POST/PUT com os parâmetros na query string, como a API do Trello espera. */
-export async function trelloWrite<T>(
-  path: string,
-  params: Record<string, string>,
-  metodo: "POST" | "PUT" = "POST",
-): Promise<T> {
-  const busca = new URLSearchParams({ ...params, ...credenciais() });
-  const resposta = await comRetentativa(
-    () =>
-      fetch(`${TRELLO_BASE}${path}?${busca.toString()}`, {
-        method: metodo,
-        headers: { Accept: "application/json" },
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      }),
-    path,
-  );
-  return (await resposta.json()) as T;
-}
-
 /**
- * POST/PUT com corpo JSON. Alguns endpoints do Trello — notadamente o de
- * valores de campo personalizado — exigem o valor aninhado num corpo JSON e
- * ignoram parâmetros de query.
+ * POST/PUT com corpo JSON. É o formato certo para os endpoints que exigem o
+ * valor aninhado (campos personalizados) e para os corpos grandes: a criação
+ * do cartão leva a descrição inteira, que não caberia numa query string.
  */
 export async function trelloWriteJson<T>(
   path: string,

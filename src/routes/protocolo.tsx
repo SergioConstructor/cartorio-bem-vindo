@@ -311,9 +311,15 @@ function ProtocoloPage() {
           limite: "Recebemos muitos envios agora há pouco. Aguarde alguns minutos e tente de novo.",
           config_pendente:
             "O envio online ainda não está liberado. Fale conosco pelo WhatsApp que protocolamos para você.",
+          sem_permissao:
+            "O envio online está temporariamente indisponível. Já avisamos o cartório — fale conosco pelo WhatsApp que protocolamos para você agora.",
           erro: "Não foi possível concluir o envio. Tente novamente em instantes.",
         };
-        setErroEnvio(mensagens[resultado.status] ?? mensagens.erro);
+        const referencia = resultado.status === "erro" ? resultado.referencia : undefined;
+        setErroEnvio(
+          (mensagens[resultado.status] ?? mensagens.erro) +
+            (referencia ? ` (referência: ${referencia})` : ""),
+        );
         setCaptchaToken(null);
         setCaptchaResetKey((k) => k + 1);
         setEtapa("formulario");

@@ -8,7 +8,7 @@ import {
   QUADRO_FLUXO_RE,
   trelloAnexar,
   trelloGet,
-  trelloWrite,
+  TrelloError,
   trelloWriteJson,
 } from "../trello.server";
 import { verificarTurnstile } from "../turnstile.server";
@@ -59,7 +59,12 @@ export type ResultadoEnvio =
   | { status: "captcha" }
   | { status: "limite" }
   | { status: "config_pendente" }
-  | { status: "erro" };
+  // Token do Trello sem permissão de escrita (ou expirado): retentar não
+  // adianta, é configuração. Merece mensagem própria, não "tente de novo".
+  | { status: "sem_permissao" }
+  // A referência identifica em que passo a integração parou (ex.: "CARTAO-400").
+  // Não expõe nada sensível e poupa o cartório de caçar log para relatar a falha.
+  | { status: "erro"; referencia?: string };
 
 export type ResultadoAnexo =
   | { status: "ok"; nome: string }
@@ -371,6 +376,21 @@ type EnvioValidado = {
   observacoes: string;
 };
 
+/** Referência curta do passo que falhou, para o cartório relatar sem ler log. */
+function referenciaDaFalha(erro: unknown): string | undefined {
+  if (!(erro instanceof TrelloError)) return undefined;
+  const passo = erro.path.startsWith("/cards")
+    ? "CARTAO"
+    : erro.path.includes("/lists")
+      ? "LISTAS"
+      : erro.path.includes("/boards")
+        ? "QUADROS"
+        : erro.path.includes("/members")
+          ? "CONTA"
+          : "TRELLO";
+  return `${passo}-${erro.status}`;
+}
+
 export const enviarProtocolo = createServerFn({ method: "POST" })
   .inputValidator(envioSchema)
   .handler(async ({ data }): Promise<ResultadoEnvio> => {
@@ -446,13 +466,20 @@ export const enviarProtocolo = createServerFn({ method: "POST" })
       const bloco = blocoDoEnvio(dados, codigo, itens);
       const desc = (descModelo ? `${descModelo}\n\n${bloco}` : bloco).slice(0, MAX_CARACTERES_DESC);
 
-      const cartao = await trelloWrite<{ id: string }>("/cards", {
-        idList: estrutura.listaEntradaId,
-        name: tituloCartao(dados.ato, codigo, dados.parteNome),
-        desc,
-        pos: "top",
-        ...(modelo ? { idCardSource: modelo.id, keepFromSource: "checklists,labels" } : {}),
-      });
+      // Corpo JSON, não query string: a descrição carrega o formulário do
+      // modelo e passa de 3 KB — na URL isso se aproxima do limite de tamanho
+      // da linha de requisição.
+      const cartao = await trelloWriteJson<{ id: string }>(
+        "/cards",
+        {
+          idList: estrutura.listaEntradaId,
+          name: tituloCartao(dados.ato, codigo, dados.parteNome),
+          desc,
+          pos: "top",
+          ...(modelo ? { idCardSource: modelo.id, keepFromSource: "checklists,labels" } : {}),
+        },
+        "POST",
+      );
 
       await preencherCampo(cartao.id, estrutura.campos, "Apresentante", dados.apresentanteNome);
       await preencherCampo(
@@ -477,7 +504,14 @@ export const enviarProtocolo = createServerFn({ method: "POST" })
       return { status: "ok", codigo, uploadToken, maxArquivos: data.quantidadeArquivos };
     } catch (erro) {
       console.error("Erro ao criar a solicitação de protocolo:", erro);
-      return { status: "erro" };
+      if (erro instanceof TrelloError && erro.semPermissao) {
+        console.error(
+          "O token do Trello não tem permissão de ESCRITA. Gere outro com " +
+            "scope=read,write e atualize TRELLO_API_TOKEN na Vercel.",
+        );
+        return { status: "sem_permissao" };
+      }
+      return { status: "erro", referencia: referenciaDaFalha(erro) };
     }
   });
 
