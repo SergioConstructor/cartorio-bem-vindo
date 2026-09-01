@@ -40,13 +40,18 @@ async function comRetentativa(
   return resposta;
 }
 
-export async function trelloGet<T>(path: string, params: Record<string, string>): Promise<T> {
+export async function trelloGet<T>(
+  path: string,
+  params: Record<string, string>,
+  /** Prazo maior para as poucas chamadas que trazem muitos registros. */
+  timeoutMs: number = FETCH_TIMEOUT_MS,
+): Promise<T> {
   const busca = new URLSearchParams({ ...params, ...credenciais() });
   const resposta = await comRetentativa(
     () =>
       fetch(`${TRELLO_BASE}${path}?${busca.toString()}`, {
         headers: { Accept: "application/json" },
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       }),
     path,
   );
