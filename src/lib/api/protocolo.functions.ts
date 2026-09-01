@@ -62,7 +62,9 @@ export type ResultadoEnvio =
   // Token do Trello sem permissão de escrita (ou expirado): retentar não
   // adianta, é configuração. Merece mensagem própria, não "tente de novo".
   | { status: "sem_permissao" }
-  | { status: "erro" };
+  // A referência identifica em que passo a integração parou (ex.: "CARTAO-400").
+  // Não expõe nada sensível e poupa o cartório de caçar log para relatar a falha.
+  | { status: "erro"; referencia?: string };
 
 export type ResultadoAnexo =
   | { status: "ok"; nome: string }
@@ -374,6 +376,21 @@ type EnvioValidado = {
   observacoes: string;
 };
 
+/** Referência curta do passo que falhou, para o cartório relatar sem ler log. */
+function referenciaDaFalha(erro: unknown): string | undefined {
+  if (!(erro instanceof TrelloError)) return undefined;
+  const passo = erro.path.startsWith("/cards")
+    ? "CARTAO"
+    : erro.path.includes("/lists")
+      ? "LISTAS"
+      : erro.path.includes("/boards")
+        ? "QUADROS"
+        : erro.path.includes("/members")
+          ? "CONTA"
+          : "TRELLO";
+  return `${passo}-${erro.status}`;
+}
+
 export const enviarProtocolo = createServerFn({ method: "POST" })
   .inputValidator(envioSchema)
   .handler(async ({ data }): Promise<ResultadoEnvio> => {
@@ -494,7 +511,7 @@ export const enviarProtocolo = createServerFn({ method: "POST" })
         );
         return { status: "sem_permissao" };
       }
-      return { status: "erro" };
+      return { status: "erro", referencia: referenciaDaFalha(erro) };
     }
   });
 

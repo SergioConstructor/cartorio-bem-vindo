@@ -10,6 +10,8 @@ import { getServerConfig } from "./config.server";
 export class TrelloError extends Error {
   constructor(
     readonly status: number,
+    /** Caminho chamado ("/cards", "/members/me/boards"): identifica o passo. */
+    readonly path: string,
     mensagem: string,
   ) {
     super(mensagem);
@@ -56,6 +58,7 @@ async function comRetentativa(
     const detalhe = await resposta.text().catch(() => "");
     throw new TrelloError(
       resposta.status,
+      descricao,
       `Trello ${descricao} falhou: ${resposta.status} ${resposta.statusText}${
         detalhe ? ` — ${detalhe.slice(0, 300)}` : ""
       }`,
