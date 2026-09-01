@@ -49,6 +49,9 @@ import { perguntasDoAto } from "../../content/protocolo/triagem";
 const NOME_LISTA_ENTRADA_PADRAO = "Pré-protocolo (site)";
 const MIN_SEGUNDOS_PREENCHIMENTO = 10;
 const MAX_CARACTERES_DESC = 12_000;
+// A varredura do quadro é a chamada mais pesada: merece mais fôlego que as
+// demais, mesmo já pedindo só os campos mínimos.
+const DESCOBERTA_TIMEOUT_MS = 20_000;
 
 export type ResultadoEnvio =
   | { status: "ok"; codigo: string; uploadToken: string | null; maxArquivos: number }
@@ -139,10 +142,10 @@ function ipDoCliente(): string {
 
 type TrelloQuadro = { id: string; name: string };
 type TrelloLista = { id: string; name: string };
-type TrelloCartao = { id: string; name: string; desc?: string; isTemplate?: boolean };
+type TrelloCartao = { id: string; name: string; isTemplate?: boolean };
 type TrelloCampo = { id: string; name: string; type: string };
 
-type Modelo = { id: string; desc: string };
+type Modelo = { id: string };
 
 type Estrutura = {
   listaEntradaId: string;
@@ -179,20 +182,30 @@ async function obterEstrutura(): Promise<Estrutura | null> {
   }
 
   // Cartões-modelo: o cartório mantém um por ato, nomeado "Prot. (CV-Urbano) -".
-  // Guardamos também a descrição, para preservá-la no cartão criado (o `desc`
-  // que passamos no POST sobrescreveria a do modelo).
-  const cartoes = await trelloGet<TrelloCartao[]>(`/boards/${quadro.id}/cards`, {
-    fields: "name,desc,isTemplate",
-    filter: "all",
-  });
+  //
+  // Este quadro acumula MILHARES de cartões (passa de 2.500), cada um com uma
+  // descrição longa. Pedir "todos os cartões com desc" devolvia megabytes e
+  // estourava o tempo limite, derrubando o envio inteiro. Duas medidas:
+  //   - só os campos mínimos e só cartões abertos (modelo nunca é arquivado);
+  //   - a descrição do modelo é buscada depois, sob demanda, só a do ato usado.
   const modelosPorAto: Record<string, Modelo> = {};
-  for (const cartao of cartoes) {
-    if (!cartao.isTemplate) continue;
-    const ato = /^\s*prot\.?\s*\(([^)]+)\)/i.exec(cartao.name)?.[1];
-    if (!ato) continue;
-    const chave = normalizarNome(ato);
-    if (!(chave in modelosPorAto))
-      modelosPorAto[chave] = { id: cartao.id, desc: cartao.desc ?? "" };
+  try {
+    const cartoes = await trelloGet<TrelloCartao[]>(
+      `/boards/${quadro.id}/cards`,
+      { fields: "name,isTemplate", filter: "open" },
+      DESCOBERTA_TIMEOUT_MS,
+    );
+    for (const cartao of cartoes) {
+      if (!cartao.isTemplate) continue;
+      const ato = /^\s*prot\.?\s*\(([^)]+)\)/i.exec(cartao.name)?.[1];
+      if (!ato) continue;
+      const chave = normalizarNome(ato);
+      if (!(chave in modelosPorAto)) modelosPorAto[chave] = { id: cartao.id };
+    }
+  } catch (erro) {
+    // Sem os modelos o cartão ainda é criado — só não herda a checklist.
+    // Perder a solicitação do cliente por causa disso seria bem pior.
+    console.error("Não foi possível ler os cartões-modelo do quadro:", erro);
   }
 
   const campos = await trelloGet<TrelloCampo[]>(`/boards/${quadro.id}/customFields`, {}).catch(
@@ -419,11 +432,19 @@ export const enviarProtocolo = createServerFn({ method: "POST" })
 
       // Preservamos a descrição do modelo acima do bloco do envio: o `desc`
       // explícito do POST substituiria a descrição herdada de idCardSource.
+      // Buscamos só a do modelo deste ato — varrer o quadro inteiro atrás de
+      // todas as descrições era o que estourava o tempo limite.
+      const descModelo = modelo
+        ? await trelloGet<{ desc?: string }>(`/cards/${modelo.id}`, { fields: "desc" })
+            .then((c) => c.desc ?? "")
+            .catch((erro) => {
+              console.error("Não foi possível ler a descrição do modelo:", erro);
+              return "";
+            })
+        : "";
+
       const bloco = blocoDoEnvio(dados, codigo, itens);
-      const desc = (modelo?.desc ? `${modelo.desc}\n\n${bloco}` : bloco).slice(
-        0,
-        MAX_CARACTERES_DESC,
-      );
+      const desc = (descModelo ? `${descModelo}\n\n${bloco}` : bloco).slice(0, MAX_CARACTERES_DESC);
 
       const cartao = await trelloWrite<{ id: string }>("/cards", {
         idList: estrutura.listaEntradaId,
