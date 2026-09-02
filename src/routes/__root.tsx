@@ -88,7 +88,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:card", content: "summary" },
       { name: "theme-color", content: "#631325" },
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    links: [
+      { rel: "stylesheet", href: appCss },
+      // O Google só mostra o ícone na busca se ele for quadrado e tiver pelo
+      // menos 48x48 — o .ico carrega 16/32/48. Os arquivos ficam em public/ e
+      // são gerados por scripts/gerar-icones.py a partir da marca.
+      { rel: "icon", href: "/favicon.ico", sizes: "16x16 32x32 48x48" },
+      { rel: "icon", type: "image/png", href: "/icon-192.png", sizes: "192x192" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
+      { rel: "manifest", href: "/manifest.json" },
+    ],
     scripts: [
       {
         type: "application/ld+json",
