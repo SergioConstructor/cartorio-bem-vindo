@@ -136,15 +136,8 @@ export async function trelloAnexar<T>(
   return (await resposta.json()) as T;
 }
 
-/** Compara nomes do Trello ignorando acentos, maiúsculas e pontuação. */
-export function normalizarNome(nome: string): string {
-  return nome
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
-}
+// A normalização de nomes mora em content/tracking (é usada no cliente também).
+export { normalizarNome } from "../content/tracking";
 
 /** Quadros do fluxo do cartório: o nome começa com dois dígitos ("00. …"). */
 export const QUADRO_FLUXO_RE = /^\s*\d{2}\b/;
