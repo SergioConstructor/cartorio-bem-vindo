@@ -4,12 +4,21 @@ import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Check, Clock, Loader2, MessageCircle, Search, ShieldCheck, UserRound } from "lucide-react";
+import {
+  Check,
+  Clock,
+  Landmark,
+  Loader2,
+  MessageCircle,
+  Search,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import { PageHero } from "@/components/site/PageHero";
 import { SectionHeading } from "@/components/site/SectionHeading";
 import { Progress } from "@/components/ui/progress";
 import { getEscrituraStatus, type TrackingResult } from "@/lib/api/tracking.functions";
-import { defaultStages, demoStageIndex } from "@/content/tracking";
+import { defaultStages, demoStageIndex, type Responsavel } from "@/content/tracking";
 
 export const Route = createFileRoute("/acompanhar")({
   head: () => ({
@@ -145,7 +154,7 @@ function ResultView({ result, protocolo }: { result: TrackingResult; protocolo: 
           currentStageIndex={result.currentStageIndex}
           updatedAt={result.updatedAt}
           protocolo={protocolo}
-          escrevente={result.escrevente}
+          responsavel={result.responsavel}
         />
       );
     case "config_pendente":
@@ -155,22 +164,54 @@ function ResultView({ result, protocolo }: { result: TrackingResult; protocolo: 
           currentStageIndex={demoStageIndex}
           updatedAt={null}
           protocolo={protocolo}
-          escrevente="Lara"
+          responsavel={{ tipo: "escrevente", nome: "Lara" }}
           demo
+        />
+      );
+    case "em_andamento":
+      return (
+        <NoticeCard
+          protocolo={protocolo}
+          title="Seu processo está em andamento"
+          description="Ele está numa etapa interna do cartório que não aparece na linha do tempo. Se quiser saber o detalhe, é só falar com a nossa equipe."
+          updatedAt={result.updatedAt}
+          responsavel={result.responsavel}
+        />
+      );
+    case "pendencia":
+      return (
+        <NoticeCard
+          protocolo={protocolo}
+          title="Há uma pendência no seu processo"
+          description="O andamento está parado aguardando algum documento, resposta ou providência. Fale com o cartório para saber exatamente o que falta e destravar a escritura."
+          updatedAt={result.updatedAt}
+          responsavel={result.responsavel}
+          destaque
+        />
+      );
+    case "sem_efeito":
+      return (
+        <NoticeCard
+          protocolo={protocolo}
+          title="Este protocolo foi encerrado sem efeito"
+          description="A escritura não chegou a ser lavrada e o protocolo foi arquivado. Se isso for inesperado, fale com o cartório para entender o motivo ou abrir um novo protocolo."
+          updatedAt={result.updatedAt}
         />
       );
     case "pre_protocolo":
       return (
         <NoticeCard
+          protocolo={protocolo}
           title="Recebemos sua solicitação pelo site"
           description="Ela está na fila de conferência do cartório. Assim que uma escrevente conferir os documentos, você recebe o número oficial do protocolo — e passa a acompanhar o andamento por ele."
+          updatedAt={result.updatedAt}
         />
       );
     case "nao_encontrado":
       return (
         <NoticeCard
           title="Não encontramos esse protocolo"
-          description="Confira o número ou o código informado. Se estiver correto, o processo pode ainda não ter sido registrado ou já ter sido concluído. Fale com o cartório para confirmar."
+          description="Confira o número ou o código informado. Se estiver correto, o processo pode ainda não ter sido registrado no sistema. Fale com o cartório para confirmar."
         />
       );
     case "ambiguo":
@@ -186,20 +227,40 @@ function ResultView({ result, protocolo }: { result: TrackingResult; protocolo: 
   }
 }
 
+/** "Com a escrevente Lara" / "Na mesa do tabelião" — por quem perguntar. */
+function ResponsavelLine({ responsavel }: { responsavel: Responsavel | null }) {
+  if (!responsavel) return null;
+  return (
+    <p className="mt-1.5 flex items-center gap-1.5 text-sm text-secondary/80">
+      {responsavel.tipo === "escrevente" ? (
+        <>
+          <UserRound size={14} className="text-primary" aria-hidden />
+          Com a escrevente <strong className="font-semibold">{responsavel.nome}</strong>
+        </>
+      ) : (
+        <>
+          <Landmark size={14} className="text-primary" aria-hidden />
+          Na mesa do <strong className="font-semibold">tabelião</strong>
+        </>
+      )}
+    </p>
+  );
+}
+
 function Timeline({
   stages,
   currentStageIndex,
   updatedAt,
   protocolo,
-  escrevente = null,
+  responsavel = null,
   demo = false,
 }: {
   stages: { label: string }[];
   currentStageIndex: number;
   updatedAt: string | null;
   protocolo: string;
-  /** Nome da escrevente responsável, quando o processo está com uma delas. */
-  escrevente?: string | null;
+  /** Quem está com o processo agora, quando dá para saber pelo quadro. */
+  responsavel?: Responsavel | null;
   demo?: boolean;
 }) {
   const total = stages.length;
@@ -223,12 +284,7 @@ function Timeline({
             Protocolo {protocolo}
           </div>
           <h2 className="mt-1 font-display text-2xl text-secondary">{stages[current].label}</h2>
-          {escrevente && (
-            <p className="mt-1.5 flex items-center gap-1.5 text-sm text-secondary/80">
-              <UserRound size={14} className="text-primary" aria-hidden />
-              Com a escrevente <strong className="font-semibold">{escrevente}</strong>
-            </p>
-          )}
+          <ResponsavelLine responsavel={responsavel} />
         </div>
         <span className="text-sm text-muted-foreground">
           Etapa {current + 1} de {total}
@@ -316,11 +372,40 @@ function Timeline({
   );
 }
 
-function NoticeCard({ title, description }: { title: string; description: string }) {
+function NoticeCard({
+  title,
+  description,
+  protocolo,
+  updatedAt = null,
+  responsavel = null,
+  destaque = false,
+}: {
+  title: string;
+  description: string;
+  /** Quando informado, o cartão vira o "resultado" daquele protocolo. */
+  protocolo?: string;
+  updatedAt?: string | null;
+  responsavel?: Responsavel | null;
+  /** Borda dourada: situação que pede ação do cliente (pendência). */
+  destaque?: boolean;
+}) {
+  const formatted = formatUpdatedAt(updatedAt);
   return (
-    <div className="border border-border bg-card p-6 md:p-8">
-      <h2 className="font-display text-2xl text-secondary">{title}</h2>
+    <div className={`border bg-card p-6 md:p-8 ${destaque ? "border-gold" : "border-border"}`}>
+      {protocolo && (
+        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-secondary/70">
+          Protocolo {protocolo}
+        </div>
+      )}
+      <h2 className={`font-display text-2xl text-secondary ${protocolo ? "mt-1" : ""}`}>{title}</h2>
+      <ResponsavelLine responsavel={responsavel} />
       <p className="mt-2 text-sm leading-relaxed text-foreground/70">{description}</p>
+      {formatted && (
+        <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Clock size={13} className="text-gold" aria-hidden />
+          Última atualização: {formatted}
+        </p>
+      )}
       <a
         href={WHATSAPP_URL}
         target="_blank"
