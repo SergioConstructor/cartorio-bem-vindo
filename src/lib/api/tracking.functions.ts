@@ -57,9 +57,32 @@ type TrelloCard = {
   id: string;
   name: string;
   dateLastActivity?: string | null;
+  /** Cartão arquivado. */
+  closed?: boolean;
   list?: { id: string; name: string } | null;
-  board?: { id: string; name: string } | null;
+  /** `closed` = quadro arquivado: cópias antigas de um quadro inteiro ficam lá. */
+  board?: { id: string; name: string; closed?: boolean } | null;
 };
+
+/**
+ * Busca de cartões só entre os ATIVOS. Sem o "is:open", o /search do Trello
+ * devolve também cartões arquivados e cartões de quadros arquivados — e um
+ * quadro copiado e depois arquivado traz cópias de todos os protocolos, que
+ * faziam o número aparecer como "mais de um processo".
+ */
+async function buscarCartoes(termo: string, limite: number): Promise<TrelloCard[]> {
+  const { cards = [] } = await trelloGet<{ cards?: TrelloCard[] }>("/search", {
+    query: `is:open ${termo}`,
+    modelTypes: "cards",
+    card_fields: "name,dateLastActivity,closed",
+    card_list: "true",
+    card_board: "true",
+    cards_limit: String(limite),
+    partial: "false",
+  });
+  // Segunda trava, caso o operador da busca mude de comportamento.
+  return cards.filter((card) => !card.closed && !card.board?.closed);
+}
 
 // Proteções da consulta pública (por instância do servidor): limita quantas
 // consultas chegam ao Trello por janela e reaproveita resultados recentes,
@@ -153,8 +176,10 @@ async function avaliarCartao(card: TrelloCard, stages: Stage[]): Promise<Avaliac
   // card_board/card_list normalmente já vêm na busca; busca-os se faltarem.
   const board =
     card.board ??
-    (await trelloGet<{ id: string; name: string }>(`/cards/${card.id}/board`, { fields: "name" }));
-  if (!QUADRO_FLUXO_RE.test(board.name)) return null;
+    (await trelloGet<{ id: string; name: string; closed?: boolean }>(`/cards/${card.id}/board`, {
+      fields: "name,closed",
+    }));
+  if (board.closed || !QUADRO_FLUXO_RE.test(board.name)) return null;
 
   const list =
     card.list ??
@@ -214,15 +239,7 @@ function escolher(avaliacoes: Avaliacao[], stages: Stage[]): Avaliacao | "ambigu
  * escrevente move e numera, a consulta por número passa a valer.
  */
 async function consultarPorCodigo(codigo: string, stages: Stage[]): Promise<TrackingResult> {
-  const { cards = [] } = await trelloGet<{ cards?: TrelloCard[] }>("/search", {
-    query: codigo,
-    modelTypes: "cards",
-    card_fields: "name,dateLastActivity",
-    card_list: "true",
-    card_board: "true",
-    cards_limit: "50",
-    partial: "false",
-  });
+  const cards = await buscarCartoes(codigo, 50);
 
   const alvo = `[${codigo}]`;
   const encontrados = cards.filter((card) => card.name.toUpperCase().includes(alvo));
@@ -240,15 +257,7 @@ async function consultarPorNumero(target: string, stages: Stage[]): Promise<Trac
 
   const byId = new Map<string, TrelloCard>();
   for (const query of queries) {
-    const { cards = [] } = await trelloGet<{ cards?: TrelloCard[] }>("/search", {
-      query,
-      modelTypes: "cards",
-      card_fields: "name,dateLastActivity",
-      card_list: "true",
-      card_board: "true",
-      cards_limit: "250",
-      partial: "false",
-    });
+    const cards = await buscarCartoes(query, 250);
     for (const card of cards) byId.set(card.id, card);
   }
 
