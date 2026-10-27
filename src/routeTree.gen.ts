@@ -15,6 +15,7 @@ import { Route as ContatoRouteImport } from './routes/contato'
 import { Route as ProtocoloRouteImport } from './routes/protocolo'
 import { Route as ServicosRouteImport } from './routes/servicos'
 import { Route as SobreRouteImport } from './routes/sobre'
+import { Route as TransparenciaRouteImport } from './routes/transparencia'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 
@@ -48,6 +49,11 @@ const SobreRoute = SobreRouteImport.update({
   path: '/sobre',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TransparenciaRoute = TransparenciaRouteImport.update({
+  id: '/transparencia',
+  path: '/transparencia',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BlogIndexRoute = BlogIndexRouteImport.update({
   id: '/blog/',
   path: '/blog/',
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/protocolo': typeof ProtocoloRoute
   '/servicos': typeof ServicosRoute
   '/sobre': typeof SobreRoute
+  '/transparencia': typeof TransparenciaRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/blog/': typeof BlogIndexRoute
 }
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/protocolo': typeof ProtocoloRoute
   '/servicos': typeof ServicosRoute
   '/sobre': typeof SobreRoute
+  '/transparencia': typeof TransparenciaRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/blog': typeof BlogIndexRoute
 }
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/protocolo': typeof ProtocoloRoute
   '/servicos': typeof ServicosRoute
   '/sobre': typeof SobreRoute
+  '/transparencia': typeof TransparenciaRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/blog/': typeof BlogIndexRoute
 }
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
     | '/protocolo'
     | '/servicos'
     | '/sobre'
+    | '/transparencia'
     | '/blog/$slug'
     | '/blog/'
   fileRoutesByTo: FileRoutesByTo
@@ -109,6 +119,7 @@ export interface FileRouteTypes {
     | '/protocolo'
     | '/servicos'
     | '/sobre'
+    | '/transparencia'
     | '/blog/$slug'
     | '/blog'
   id:
@@ -119,6 +130,7 @@ export interface FileRouteTypes {
     | '/protocolo'
     | '/servicos'
     | '/sobre'
+    | '/transparencia'
     | '/blog/$slug'
     | '/blog/'
   fileRoutesById: FileRoutesById
@@ -130,6 +142,7 @@ export interface RootRouteChildren {
   ProtocoloRoute: typeof ProtocoloRoute
   ServicosRoute: typeof ServicosRoute
   SobreRoute: typeof SobreRoute
+  TransparenciaRoute: typeof TransparenciaRoute
   BlogSlugRoute: typeof BlogSlugRoute
   BlogIndexRoute: typeof BlogIndexRoute
 }
@@ -178,6 +191,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SobreRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/transparencia': {
+      id: '/transparencia'
+      path: '/transparencia'
+      fullPath: '/transparencia'
+      preLoaderRoute: typeof TransparenciaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/blog/': {
       id: '/blog/'
       path: '/blog'
@@ -202,6 +222,7 @@ const rootRouteChildren: RootRouteChildren = {
   ProtocoloRoute: ProtocoloRoute,
   ServicosRoute: ServicosRoute,
   SobreRoute: SobreRoute,
+  TransparenciaRoute: TransparenciaRoute,
   BlogSlugRoute: BlogSlugRoute,
   BlogIndexRoute: BlogIndexRoute,
 }
