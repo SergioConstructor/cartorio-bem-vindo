@@ -52,6 +52,14 @@ export function Footer() {
                 Contato
               </Link>
             </li>
+            <li>
+              <Link
+                to="/transparencia"
+                className="transition-colors hover:text-secondary-foreground"
+              >
+                Transparência
+              </Link>
+            </li>
           </ul>
         </div>
 
